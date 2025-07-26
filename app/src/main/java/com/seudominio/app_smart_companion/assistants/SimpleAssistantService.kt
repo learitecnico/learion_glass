@@ -298,10 +298,44 @@ class SimpleAssistantService : Service() {
         val savedKey = sharedPreferences.getString("openai_api_key", null)
         if (savedKey != null) return savedKey
         
-        // Fallback para test key (replace with your OpenAI API key)
-        val testApiKey = "YOUR_OPENAI_API_KEY_HERE"
-        Log.d(TAG, "Using hardcoded API key for testing")
-        return testApiKey
+        // Auto-configure API key from companion .env file if not set
+        val envApiKey = loadApiKeyFromEnv()
+        if (envApiKey != null) {
+            // Save to SharedPreferences for future use
+            sharedPreferences.edit().putString("openai_api_key", envApiKey).apply()
+            Log.d(TAG, "API key loaded from .env file and saved to SharedPreferences")
+            return envApiKey
+        }
+        
+        // Fallback - user needs to configure manually
+        Log.w(TAG, "No API key found - user must configure via Settings")
+        return null
+    }
+    
+    /**
+     * Load API key from companion-desktop/.env file
+     */
+    private fun loadApiKeyFromEnv(): String? {
+        return try {
+            // Try to read from companion-desktop/.env file
+            val envFile = File(filesDir.parentFile?.parentFile?.parentFile, "companion-desktop/.env")
+            if (envFile.exists()) {
+                envFile.readLines().forEach { line ->
+                    if (line.startsWith("OPENAI_API_KEY=") && !line.contains("YOUR_OPENAI_API_KEY_HERE")) {
+                        val apiKey = line.substring("OPENAI_API_KEY=".length).trim()
+                        if (apiKey.startsWith("sk-") && apiKey.length > 20) {
+                            Log.d(TAG, "Found valid API key in .env file")
+                            return apiKey
+                        }
+                    }
+                }
+            }
+            Log.d(TAG, "No valid API key found in .env file")
+            null
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not read .env file: ${e.message}")
+            null
+        }
     }
     
     /**
