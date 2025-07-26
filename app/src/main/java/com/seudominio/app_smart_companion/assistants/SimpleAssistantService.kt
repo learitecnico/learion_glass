@@ -313,27 +313,30 @@ class SimpleAssistantService : Service() {
     }
     
     /**
-     * Load API key from companion-desktop/.env file
+     * Load API key from project root .env file
      */
     private fun loadApiKeyFromEnv(): String? {
         return try {
-            // Try to read from companion-desktop/.env file
-            val envFile = File(filesDir.parentFile?.parentFile?.parentFile, "companion-desktop/.env")
+            // Try to read from project root .env file
+            val envFile = File(filesDir.parentFile?.parentFile?.parentFile, ".env")
+            Log.d(TAG, "🔍 Trying to read .env from: ${envFile.absolutePath}")
+            Log.d(TAG, "🔍 .env file exists: ${envFile.exists()}")
+            
             if (envFile.exists()) {
                 envFile.readLines().forEach { line ->
                     if (line.startsWith("OPENAI_API_KEY=") && !line.contains("YOUR_OPENAI_API_KEY_HERE")) {
                         val apiKey = line.substring("OPENAI_API_KEY=".length).trim()
                         if (apiKey.startsWith("sk-") && apiKey.length > 20) {
-                            Log.d(TAG, "Found valid API key in .env file")
+                            Log.d(TAG, "✅ Found valid API key in .env file")
                             return apiKey
                         }
                     }
                 }
             }
-            Log.d(TAG, "No valid API key found in .env file")
+            Log.d(TAG, "❌ No valid API key found in .env file")
             null
         } catch (e: Exception) {
-            Log.w(TAG, "Could not read .env file: ${e.message}")
+            Log.w(TAG, "⚠️ Could not read .env file: ${e.message}")
             null
         }
     }
