@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android Default Colors (kept for compatibility) -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- Vuzix M400 Theme Colors -->
+    <!-- Primary Green Variations (optimized for HUD visibility) -->
+    <color name="vuzix_green_primary">#00FF00</color>     <!-- Pure HUD Green -->
+    <color name="vuzix_green_bright">#39FF14</color>      <!-- Neon/Electric Green -->
+    <color name="vuzix_green_medium">#00D000</color>      <!-- Medium Green -->
+    <color name="vuzix_green_dark">#00A000</color>        <!-- Dark Green -->
+    
+    <!-- Black Variations (for backgrounds and overlays) -->
+    <color name="vuzix_black">#000000</color>             <!-- Pure Black -->
+    <color name="vuzix_black_95">#F2000000</color>        <!-- 95% opaque -->
+    <color name="vuzix_black_90">#E6000000</color>        <!-- 90% opaque -->
+    <color name="vuzix_black_80">#CC000000</color>        <!-- 80% opaque -->
+    <color name="vuzix_black_50">#80000000</color>        <!-- 50% opaque -->
+    
+    <!-- Text & UI Elements -->
+    <color name="vuzix_text_primary">#FFFFFF</color>      <!-- Primary text -->
+    <color name="vuzix_text_secondary">#B3B3B3</color>    <!-- Secondary text -->
+    <color name="vuzix_text_accent">#00FF00</color>       <!-- Accent text -->
+    
+    <!-- Enhanced visibility colors -->
+    <color name="vuzix_border_green">#00FF00</color>      <!-- Border highlight -->
+    <color name="vuzix_text_high_contrast">#FFFFFF</color> <!-- Maximum contrast -->
+    
+    <!-- Status Colors -->
+    <color name="vuzix_connected">#00FF00</color>         <!-- Connected status -->
+    <color name="vuzix_disconnected">#FF0000</color>      <!-- Disconnected status -->
+    <color name="vuzix_processing">#FFAA00</color>        <!-- Processing status -->
+    <color name="vuzix_listening">#39FF14</color>         <!-- Listening status -->
+    
+    <!-- Legacy HUD colors (mapped to new Vuzix colors) -->
+    <color name="hud_primary_text">@color/vuzix_text_primary</color>
+    <color name="hud_secondary_text">@color/vuzix_text_secondary</color>
+    <color name="hud_background_transparent">@color/vuzix_black_80</color>
+    <color name="hud_accent">@color/vuzix_green_primary</color>
+    <color name="hud_warning">@color/vuzix_processing</color>
+    <color name="hud_error">@color/vuzix_disconnected</color>
+</resources>

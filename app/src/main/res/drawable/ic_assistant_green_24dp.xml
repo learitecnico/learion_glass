@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    
+    <!-- Assistant Robot Icon -->
+    <path
+        android:fillColor="@color/vuzix_green_primary"
+        android:pathData="M12,2A2,2 0 0,1 14,4A2,2 0 0,1 12,6A2,2 0 0,1 10,4A2,2 0 0,1 12,2M21,9V7L15,1H5A2,2 0 0,0 3,3V19A2,2 0 0,0 5,21H11A6,6 0 0,0 21,15V13A2,2 0 0,0 19,11H17V9H21M17,15A1,1 0 0,1 16,16A1,1 0 0,1 15,15A1,1 0 0,1 16,14A1,1 0 0,1 17,15M19,15A1,1 0 0,1 18,16A1,1 0 0,1 17,15A1,1 0 0,1 18,14A1,1 0 0,1 19,15Z" />
+    
+    <!-- Circuit pattern -->
+    <path
+        android:strokeColor="@color/vuzix_green_primary"
+        android:strokeWidth="1"
+        android:pathData="M8,8L16,8M8,12L16,12M8,16L16,16" />
+        
+</vector>

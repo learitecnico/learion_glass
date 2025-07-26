@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    
+    <!-- Main Menu Items -->
+    
+    <!-- 1. Assistant -->
+    <item
+        android:id="@+id/action_assistant"
+        android:title="1. Assistant"
+        android:icon="@drawable/ic_assistant_green_24dp"
+        android:orderInCategory="1"
+        app:showAsAction="never" />
+    
+    <!-- 2. Live Agent -->
+    <item
+        android:id="@+id/action_live_agent"
+        android:title="2. Live Agent"
+        android:icon="@drawable/ic_live_agent_green_24dp"
+        android:orderInCategory="2"
+        app:showAsAction="never" />
+    
+    <!-- 3. Configurações -->
+    <item
+        android:id="@+id/action_settings"
+        android:title="3. Configurações"
+        android:icon="@drawable/ic_settings_green_24dp"
+        android:orderInCategory="3"
+        app:showAsAction="never" />
+    
+    <!-- 4. Sair -->
+    <item
+        android:id="@+id/action_exit"
+        android:title="4. Sair"
+        android:icon="@drawable/ic_exit_green_24dp"
+        android:orderInCategory="4"
+        app:showAsAction="never" />
+    
+</menu>

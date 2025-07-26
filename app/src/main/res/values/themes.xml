@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Vuzix M400 Black/Green Theme -->
+    <style name="Theme.VuzixM400" parent="Theme.AppCompat.NoActionBar">
+        <!-- Window Configuration -->
+        <item name="android:windowBackground">@color/vuzix_black</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowContentOverlay">@null</item>
+        
+        <!-- Primary Color Scheme -->
+        <item name="colorPrimary">@color/vuzix_green_primary</item>
+        <item name="colorPrimaryDark">@color/vuzix_green_dark</item>
+        <item name="colorAccent">@color/vuzix_green_bright</item>
+        
+        <!-- Text Colors -->
+        <item name="android:textColorPrimary">@color/vuzix_text_primary</item>
+        <item name="android:textColorSecondary">@color/vuzix_text_secondary</item>
+        <item name="android:textColorHint">@color/vuzix_text_secondary</item>
+        
+        <!-- Text Style for better visibility -->
+        <item name="android:textStyle">bold</item>
+        
+        <!-- ActionMenu Customization (if using HUD-ActionMenu library) -->
+        <item name="actionMenuColor">@color/vuzix_green_primary</item>
+        
+        <!-- Status Bar (for compatibility) -->
+        <item name="android:statusBarColor">@color/vuzix_black</item>
+        <item name="android:navigationBarColor">@color/vuzix_black</item>
+    </style>
+    
+    <!-- Legacy theme mapping to new Vuzix theme -->
+    <style name="Theme.App_smart_companion" parent="Theme.VuzixM400" />
+</resources>

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/vuzix_black"
+    android:padding="16dp">
+
+    <!-- Connection Status Indicator -->
+    <TextView
+        android:id="@+id/connection_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:text="🔴 Disconnected"
+        android:textColor="@color/vuzix_disconnected"
+        android:textSize="14sp"
+        android:background="@color/vuzix_black"
+        android:padding="4dp" />
+
+    <!-- Main HUD Text Display -->
+    <ScrollView
+        android:id="@+id/hud_scroll_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/connection_status"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="8dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:scrollbars="vertical"
+        android:fadeScrollbars="true"
+        android:scrollbarStyle="outsideOverlay">
+
+        <TextView
+            android:id="@+id/hud_text_display"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="22sp"
+            android:textColor="@color/vuzix_text_high_contrast"
+            android:textStyle="bold"
+            android:shadowColor="@color/vuzix_green_primary"
+            android:shadowRadius="2"
+            android:shadowDx="1"
+            android:shadowDy="1"
+            android:background="@drawable/vuzix_text_border"
+            android:padding="12dp"
+            android:gravity="start"
+            android:text="Learion Glass ready...\nInitializing AI assistant..."
+            android:lineSpacingExtra="4dp"
+            android:maxLines="12"
+            android:scrollHorizontally="false"
+            android:fadingEdge="vertical"
+            android:fadingEdgeLength="20dp"
+            android:textAlignment="textStart" />
+    </ScrollView>
+
+    <!-- Processing Indicator -->
+    <TextView
+        android:id="@+id/processing_indicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="16dp"
+        android:text="🎤 Listening..."
+        android:textColor="@color/vuzix_listening"
+        android:textSize="14sp"
+        android:background="@color/vuzix_black"
+        android:padding="6dp"
+        android:visibility="gone" />
+
+</RelativeLayout>

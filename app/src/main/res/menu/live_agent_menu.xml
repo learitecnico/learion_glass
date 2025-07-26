@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    
+    <!-- Live Agent Submenu Items -->
+    
+    <!-- 1. Start Chat -->
+    <item
+        android:id="@+id/action_live_start_chat"
+        android:title="1. Start Chat"
+        android:icon="@drawable/ic_chat_green_24dp"
+        android:orderInCategory="1"
+        app:showAsAction="never" />
+    
+    <!-- 2. Switch Agent -->
+    <item
+        android:id="@+id/action_switch_agent"
+        android:title="2. Switch Agent"
+        android:icon="@drawable/ic_switch_green_24dp"
+        android:orderInCategory="2"
+        app:showAsAction="never" />
+    
+    <!-- 3. Voltar -->
+    <item
+        android:id="@+id/action_back"
+        android:title="3. Voltar"
+        android:icon="@drawable/ic_back_green_24dp"
+        android:orderInCategory="3"
+        app:showAsAction="never" />
+    
+</menu>
