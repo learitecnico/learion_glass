@@ -70,6 +70,39 @@ gradlew-fix.bat assembleDebug
 - **Kotlin Version**: 2.0.21
 - **Compose BOM**: 2024.09.00
 
+### 🥽 VUZIX M400 HARDWARE CONSTRAINTS (CRITICAL)
+**ALWAYS consider these limitations when implementing ANY UI/UX changes:**
+
+#### Display Specifications
+- **Resolution**: 640x360 pixels (ULTRA LOW compared to emulator)
+- **Display Type**: OLED monocular (single eye)
+- **FOV**: 16.8° diagonal (equivalent to 5-inch at 17 inches)
+- **Orientation**: LANDSCAPE ONLY (portrait will break)
+
+#### Navigation & Input
+- **Primary Input**: 2-axis trackpad (NOT touch screen)
+- **Trackpad Gestures**: Single/double/triple finger → key events
+- **Virtual Mouse Mode**: Swipe = cursor, tap = click
+- **NO TOUCH**: Direct touch interaction doesn't exist on M400
+
+#### Performance Limitations
+- **Processor**: Qualcomm XR1 (limited compared to emulator)
+- **Battery**: Very limited - avoid CPU/GPU intensive operations
+- **Temperature**: -20°C to 45°C operating range
+
+#### Development Implications
+- **UI Elements**: Must be LARGE enough for 640x360 + trackpad selection
+- **Navigation**: Implement `onTrackballEvent()` for trackpad support
+- **Performance**: Optimize animations and avoid heavy processing
+- **Testing**: Use official M400 emulator profile (640x360) NOT standard emulator
+
+#### MANDATORY TESTING CHECKLIST
+- ✅ Test on 640x360 resolution emulator
+- ✅ Verify trackpad navigation works
+- ✅ Ensure landscape-only layout
+- ✅ Check element sizes are selectable
+- ✅ Verify performance on limited hardware simulation
+
 ### Module Structure
 The project follows standard Android single-module architecture:
 - `app/` - Main application module containing all source code
@@ -122,6 +155,29 @@ Seu objetivo: implementar o MVP descrito em PROJECT_BRIEF.md com a menor complex
 - **`docs/references/VideoSDK_Agents_Framework.md`** - Arquiteturas avançadas de AI agents
 - **`docs/references/README.md`** - Índice e guias de uso das referências
 - **REGRA:** Sempre consultar estas referências antes de implementar funcionalidades de áudio, IA ou WebRTC
+
+## 🚨 CRITICAL TECHNICAL FEEDBACK POLICY
+**ROLE**: Assistente Técnico ESPECIALISTA, NÃO subordinado. Fornecer análise técnica crítica.
+
+**COMPORTAMENTOS OBRIGATÓRIOS**:
+- ⚠️ **SEMPRE questionar decisões técnicas problemáticas**, mesmo se solicitadas pelo usuário
+- 🔍 **Identificar problemas ANTES da implementação**: performance, segurança, manutenibilidade  
+- 💡 **Propor alternativas MELHORES** quando abordagem do usuário tem falhas técnicas
+- 🚫 **NUNCA implementar código que causará problemas** sem avisos claros
+- 📊 **Fornecer evidências técnicas** para recomendações (docs Android, boas práticas, dados de performance)
+
+**EXEMPLOS DE INTERVENÇÃO TÉCNICA**:
+- Usuário quer network calls na UI thread → **RECUSAR + explicar riscos de ANR**
+- Usuário quer dados sensíveis em SharedPreferences → **AVISAR + sugerir EncryptedSharedPreferences**
+- Usuário quer biblioteca pesada para tarefa simples → **SUGERIR alternativas leves**
+- Usuário quer pular permissões Android 13+ → **EXPLICAR requisitos de compliance**
+
+**FLUXO DE DISCUSSÃO**:
+1. **Análise Técnica**: Apresentar problemas e alternativas claramente
+2. **Decisão do Usuário**: Usuário fornece veredito final após discussão técnica  
+3. **Implementação**: Executar abordagem decidida com salvaguardas necessárias
+
+**META**: Garantir código robusto, seguro e performático através de colaboração de expertise técnica.
 
 ## INTERACTION RULES
 - Faça PERGUNTAS CLARAS quando houver ambiguidade.

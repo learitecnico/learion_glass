@@ -9,6 +9,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -82,6 +86,9 @@ class MainActivity : ActionMenuActivity() {
         
         Log.d(TAG, "MainActivity onCreate - ActionMenuActivity initialized")
         
+        // Configure M400-specific display settings
+        configureM400Display()
+        
         // Initialize UI components
         initializeHudComponents()
         
@@ -120,6 +127,28 @@ class MainActivity : ActionMenuActivity() {
         hudDisplayManager.updateConnectionStatus(false)
         
         Log.d(TAG, "HUD components initialized")
+    }
+    
+    /**
+     * Configure display settings specifically for Vuzix M400
+     */
+    private fun configureM400Display() {
+        Log.d(TAG, "🥽 Configuring M400-specific display settings")
+        
+        // Hide navigation bar (M400 doesn't have navigation buttons)
+        window.decorView.systemUiVisibility = (
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+        )
+        
+        // Force landscape orientation (M400 requirement)
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        
+        // Keep screen on for smart glasses usage
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        
+        Log.d(TAG, "✅ M400 display configuration complete")
     }
     
     /**
@@ -409,6 +438,156 @@ class MainActivity : ActionMenuActivity() {
             stopAISession()
         }
         Log.d(TAG, "MainActivity destroyed and cleaned up")
+    }
+    
+    // ===============================
+    // VUZIX M400 TRACKPAD NAVIGATION
+    // ===============================
+    
+    /**
+     * Handle trackpad events (primary M400 input method)
+     */
+    override fun onTrackballEvent(event: MotionEvent): Boolean {
+        Log.d(TAG, "🎯 Trackpad event: action=${event.action}, x=${event.x}, y=${event.y}")
+        
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                Log.d(TAG, "🎯 Trackpad pressed down")
+                return true
+            }
+            MotionEvent.ACTION_UP -> {
+                Log.d(TAG, "🎯 Trackpad tap - opening menu")
+                // Trackpad tap = open menu (M400 standard)
+                openM400ActionMenu()
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                Log.d(TAG, "🎯 Trackpad swipe: dx=${event.x}, dy=${event.y}")
+                // Handle trackpad movement for future cursor control
+                return true
+            }
+        }
+        
+        return super.onTrackballEvent(event)
+    }
+    
+    /**
+     * Handle hardware key events (DPAD fallback + M400 buttons)
+     */
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        Log.d(TAG, "🎯 Key event: code=$keyCode, action=${event.action}")
+        
+        when (keyCode) {
+            // M400 Physical Buttons (official mapping)
+            KeyEvent.KEYCODE_DPAD_CENTER -> {
+                Log.d(TAG, "🎯 M400 rear button (DPAD_CENTER) - opening menu")
+                openM400ActionMenu()
+                return true
+            }
+            
+            KeyEvent.KEYCODE_HOME -> {
+                Log.d(TAG, "🎯 M400 middle button (HOME) - going to home")
+                // Let system handle home button
+                return super.onKeyDown(keyCode, event)
+            }
+            
+            KeyEvent.KEYCODE_BACK -> {
+                Log.d(TAG, "🎯 M400 front button (BACK) - handling back navigation")
+                return handleBackNavigation()
+            }
+            
+            // DPAD Navigation (trackpad fallback gestures)
+            KeyEvent.KEYCODE_DPAD_UP -> {
+                Log.d(TAG, "🎯 DPAD UP - menu navigation up")
+                return handleMenuNavigation("up")
+            }
+            
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                Log.d(TAG, "🎯 DPAD DOWN - menu navigation down")
+                return handleMenuNavigation("down")
+            }
+            
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                Log.d(TAG, "🎯 DPAD LEFT - menu navigation left")
+                return handleMenuNavigation("left")
+            }
+            
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                Log.d(TAG, "🎯 DPAD RIGHT - menu navigation right")
+                return handleMenuNavigation("right")
+            }
+            
+            // Voice Commands Support
+            KeyEvent.KEYCODE_VOICE_ASSIST -> {
+                Log.d(TAG, "🎯 Voice assist button - starting voice interaction")
+                startVoiceInteraction()
+                return true
+            }
+        }
+        
+        return super.onKeyDown(keyCode, event)
+    }
+    
+    /**
+     * Handle back navigation with menu hierarchy support
+     */
+    private fun handleBackNavigation(): Boolean {
+        return when (currentMenuState) {
+            MenuState.MAIN -> {
+                // At main menu - exit app
+                Log.d(TAG, "🎯 Back at main menu - exiting app")
+                handleExit()
+                true
+            }
+            MenuState.ASSISTANT, MenuState.LIVE_AGENT -> {
+                // In submenu - go back to main
+                Log.d(TAG, "🎯 Back from submenu - returning to main menu")
+                navigateBack()
+                true
+            }
+        }
+    }
+    
+    /**
+     * Handle DPAD menu navigation (for trackpad gesture fallbacks)
+     */
+    private fun handleMenuNavigation(direction: String): Boolean {
+        Log.d(TAG, "🎯 Menu navigation: $direction (current state: $currentMenuState)")
+        
+        // Show navigation feedback
+        showVisualFeedback("🧭 Navigation: $direction")
+        
+        // For now, let the system handle menu navigation
+        // Future: implement custom focus management for better M400 UX
+        return false  // Let system handle DPAD navigation
+    }
+    
+    /**
+     * Start voice interaction for M400
+     */
+    private fun startVoiceInteraction() {
+        Log.d(TAG, "🎤 Starting voice interaction")
+        
+        if (isSessionActive) {
+            // If AI session is active, use Talk to AI
+            commitAudioAndRequestResponse()
+        } else {
+            // If no AI session, start one
+            startAISession()
+        }
+    }
+    
+    /**
+     * Open action menu with M400 optimization
+     */
+    private fun openM400ActionMenu() {
+        Log.d(TAG, "🎯 Opening action menu (M400 optimized)")
+        
+        // Show visual feedback
+        showVisualFeedback("📋 Opening Menu...")
+        
+        // Trigger ActionMenuActivity menu display
+        invalidateActionMenu()  // This will trigger onCreateActionMenu
     }
     
     // ===============================
