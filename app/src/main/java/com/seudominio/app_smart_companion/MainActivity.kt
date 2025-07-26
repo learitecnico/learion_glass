@@ -57,6 +57,8 @@ class MainActivity : ActionMenuActivity() {
     private var messageReceiver: BroadcastReceiver? = null
     // Broadcast Receiver for SimpleAssistantService communication  
     private var assistantReceiver: BroadcastReceiver? = null
+    // Broadcast Receiver for API key configuration
+    private var apiKeyReceiver: BroadcastReceiver? = null
     private lateinit var sharedPreferences: SharedPreferences
     private var isSessionActive = false
     private var isListening = false  // Toggle state for Talk to AI
@@ -89,6 +91,7 @@ class MainActivity : ActionMenuActivity() {
         // Initialize broadcast receivers
         setupBroadcastReceivers()
         setupAssistantBroadcastReceivers()
+        setupApiKeyReceiver()
         
         // Check permissions and API key setup
         checkPermissions()
@@ -284,11 +287,11 @@ class MainActivity : ActionMenuActivity() {
         val savedKey = sharedPreferences.getString("openai_api_key", null)
         if (savedKey != null) return savedKey
         
-        // Auto-configure API key from companion .env file if not set
+        // Auto-configure API key from .env file if not set
         val envApiKey = loadApiKeyFromEnv()
         if (envApiKey != null) {
-            // Save to SharedPreferences for future use
-            saveApiKey(envApiKey)
+            // Save to SharedPreferences for future use with source tracking
+            saveApiKey(envApiKey, "env")
             Log.d(TAG, "API key loaded from .env file and saved to SharedPreferences")
             return envApiKey
         }
@@ -331,11 +334,45 @@ class MainActivity : ActionMenuActivity() {
     }
     
     /**
-     * Save API key to SharedPreferences
+     * Save API key to SharedPreferences with source tracking
      */
-    private fun saveApiKey(apiKey: String) {
-        sharedPreferences.edit().putString("openai_api_key", apiKey).apply()
-        Log.d(TAG, "API key saved to SharedPreferences")
+    private fun saveApiKey(apiKey: String, source: String = "manual") {
+        sharedPreferences.edit()
+            .putString("openai_api_key", apiKey)
+            .putString("api_key_source", source)
+            .apply()
+        Log.d(TAG, "API key saved to SharedPreferences (source: $source)")
+    }
+    
+    /**
+     * Manual API key configuration for emulator testing
+     * Call this method for emulator testing: setApiKey("your-api-key-here")
+     */
+    fun setApiKey(apiKey: String): Boolean {
+        return if (apiKey.startsWith("sk-") && apiKey.length > 20) {
+            saveApiKey(apiKey, "manual")
+            Log.d(TAG, "✅ API key configured manually for emulator testing")
+            
+            // Update UI immediately
+            checkApiKeySetup()
+            
+            hudDisplayManager.showStatusMessage(
+                "✅ API Key Configured!\n\n" +
+                "🔑 Key: sk-...${apiKey.takeLast(4)}\n" +
+                "📍 Source: Manual Setup\n\n" +
+                "Ready to test AI features!",
+                5000L
+            )
+            true
+        } else {
+            Log.w(TAG, "❌ Invalid API key format")
+            hudDisplayManager.showStatusMessage(
+                "❌ Invalid API Key Format\n\n" +
+                "Must start with 'sk-' and be > 20 chars",
+                3000L
+            )
+            false
+        }
     }
     
     override fun onDestroy() {
@@ -353,6 +390,13 @@ class MainActivity : ActionMenuActivity() {
             LocalBroadcastManager.getInstance(this).unregisterReceiver(receiver)
             assistantReceiver = null
             Log.d(TAG, "Assistant broadcast receiver unregistered")
+        }
+        
+        // Cleanup API key receiver
+        apiKeyReceiver?.let { receiver ->
+            unregisterReceiver(receiver)
+            apiKeyReceiver = null
+            Log.d(TAG, "API key receiver unregistered")
         }
         
         // Cleanup HUD components
@@ -770,21 +814,26 @@ class MainActivity : ActionMenuActivity() {
         
         // Use showStatusMessage instead of updateTextImmediate for better visibility
         if (currentApiKey == null) {
-            // Show API key setup instructions
+            // Show API key setup instructions with emulator support
             val settingsText = "🔑 API Key Setup Required\n\n" +
-                "1. Get OpenAI API key from:\n   platform.openai.com\n\n" +
-                "2. Currently using test key\n\n" +
-                "3. Full setup UI coming soon..."
+                "📱 EMULATOR: Configure manually\n" +
+                "🥽 M400: Auto-loads from .env\n\n" +
+                "For manual setup:\n" +
+                "1. Get key: platform.openai.com\n" +
+                "2. Use setApiKey() method\n\n" +
+                "💡 Long press trackpad for help"
             
-            hudDisplayManager.showStatusMessage(settingsText, 8000L)
+            hudDisplayManager.showStatusMessage(settingsText, 10000L)
             Toast.makeText(this, "API key setup - see HUD", Toast.LENGTH_SHORT).show()
-            Log.d(TAG, "Settings (no API key) displayed via showStatusMessage")
+            Log.d(TAG, "Settings (no API key) displayed with emulator instructions")
         } else {
             // Show current settings with better formatting
             val maskedKey = "sk-..." + currentApiKey.takeLast(4)
+            val source = if (sharedPreferences.getString("api_key_source", "unknown") == "env") "📁 .env file" else "⚙️ Manual config"
             
             val settingsText = "🔧 Smart Companion Settings\n\n" +
                 "🔑 API Key: $maskedKey\n" +
+                "📍 Source: $source\n" +
                 "🤖 Current Agent: $currentAgent\n" +
                 "🎤 Audio Input: M400 Microphones\n" +
                 "🔊 Sample Rate: 24kHz PCM16\n" +
@@ -792,7 +841,7 @@ class MainActivity : ActionMenuActivity() {
                 "Tap trackpad to return to menu"
             
             hudDisplayManager.showStatusMessage(settingsText, 8000L)
-            Log.d(TAG, "Settings displayed via showStatusMessage with 8s timeout")
+            Log.d(TAG, "Settings displayed with API key info")
         }
     }
     
@@ -844,6 +893,38 @@ class MainActivity : ActionMenuActivity() {
         
         LocalBroadcastManager.getInstance(this).registerReceiver(assistantReceiver!!, filter)
         Log.d(TAG, "Assistant broadcast receivers registered")
+    }
+    
+    /**
+     * Setup API key configuration receiver for emulator testing
+     */
+    private fun setupApiKeyReceiver() {
+        apiKeyReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    "com.seudominio.app_smart_companion.SET_API_KEY" -> {
+                        val apiKey = intent.getStringExtra("api_key")
+                        if (apiKey != null) {
+                            Log.d(TAG, "🔑 Received API key configuration request via ADB")
+                            setApiKey(apiKey)
+                        } else {
+                            Log.w(TAG, "❌ API key configuration request missing api_key parameter")
+                            hudDisplayManager.showStatusMessage(
+                                "❌ Invalid Request\n\n" +
+                                "Missing api_key parameter\n" +
+                                "Use: adb shell am broadcast -a com.seudominio.app_smart_companion.SET_API_KEY --es api_key \"your-key\"",
+                                5000L
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Register API key receiver
+        val apiKeyFilter = IntentFilter("com.seudominio.app_smart_companion.SET_API_KEY")
+        registerReceiver(apiKeyReceiver, apiKeyFilter)
+        Log.d(TAG, "API key configuration receiver registered")
     }
     
     /**

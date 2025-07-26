@@ -127,3 +127,6 @@ lint/tmp/
 .settings
 
 keys/
+
+# Environment files with sensitive data
+.env
