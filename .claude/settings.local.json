@@ -57,7 +57,8 @@
       "WebFetch(domain:community.openai.com)",
       "WebFetch(domain:webrtchacks.com)",
       "WebFetch(domain:central.sonatype.com)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "WebFetch(domain:vuzix.github.io)"
     ],
     "deny": []
   }

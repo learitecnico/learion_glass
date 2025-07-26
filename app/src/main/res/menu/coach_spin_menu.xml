@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    
+    <!-- Coach SPIN Menu Options -->
+    
+    <!-- 1. Testar Conexão -->
+    <item
+        android:id="@+id/action_test_connection"
+        android:title="1. Testar Conexão"
+        android:icon="@drawable/ic_connection_green_24dp"
+        android:orderInCategory="1"
+        app:showAsAction="never" />
+    
+    <!-- 2. Mandar Foto -->
+    <item
+        android:id="@+id/action_send_photo"
+        android:title="2. Mandar Foto"
+        android:icon="@drawable/ic_camera_green_24dp"
+        android:orderInCategory="2"
+        app:showAsAction="never" />
+    
+    <!-- 3. Mandar Áudio -->
+    <item
+        android:id="@+id/action_send_audio"
+        android:title="3. Mandar Áudio"
+        android:icon="@drawable/ic_mic_green_24dp"
+        android:orderInCategory="3"
+        app:showAsAction="never" />
+    
+    <!-- 4. Informação -->
+    <item
+        android:id="@+id/action_agent_info"
+        android:title="4. Informação"
+        android:icon="@drawable/ic_info_green_24dp"
+        android:orderInCategory="4"
+        app:showAsAction="never" />
+    
+    <!-- 5. Conexão Ativa -->
+    <item
+        android:id="@+id/action_active_connection"
+        android:title="5. Conexão Ativa"
+        android:icon="@drawable/ic_active_green_24dp"
+        android:orderInCategory="5"
+        app:showAsAction="never" />
+    
+    <!-- 6. Voltar -->
+    <item
+        android:id="@+id/action_back"
+        android:title="6. Voltar"
+        android:icon="@drawable/ic_back_green_24dp"
+        android:orderInCategory="6"
+        app:showAsAction="never" />
+    
+</menu>

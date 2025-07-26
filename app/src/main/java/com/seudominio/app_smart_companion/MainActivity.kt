@@ -73,9 +73,12 @@ class MainActivity : ActionMenuActivity() {
     
     // Menu Navigation State
     private enum class MenuState {
-        MAIN,       // Main menu: Assistant, Live Agent, Settings, Exit
-        ASSISTANT,  // Assistant submenu: Start Chat, Back
-        LIVE_AGENT  // Live Agent submenu: Start Chat, Switch Agent, Back
+        MAIN,           // Main menu: Assistants, Live Agent, Voice Commands, Settings, Exit
+        ASSISTANTS,     // Assistants menu: Coach SPIN, [Future agents], Back
+        COACH_SPIN,     // Coach SPIN menu: Test, Photo, Audio, Info, Active, Back
+        COACH_ACTIVE,   // Coach Active mode: Audio, Photo, New Thread, Toggle Audio, Back
+        ASSISTANT,      // Legacy: Assistant submenu: Start Chat, Back
+        LIVE_AGENT      // Live Agent submenu: Start Chat, Switch Agent, Back
     }
     
     private var currentMenuState = MenuState.MAIN
@@ -83,6 +86,11 @@ class MainActivity : ActionMenuActivity() {
     
     // Voice Commander for hands-free control
     private lateinit var voiceCommander: LearionVoiceCommander
+    
+    // Coach SPIN state management
+    private var isCoachActive = false  // Coach SPIN active connection state
+    private var currentThreadId: String? = null  // Active conversation thread
+    private var audioResponseEnabled = false  // Toggle for audio responses (default OFF)
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -558,6 +566,27 @@ class MainActivity : ActionMenuActivity() {
                 handleExit()
                 true
             }
+            MenuState.ASSISTANTS -> {
+                // In assistants menu - go back to main
+                Log.d(TAG, "🎯 Back from assistants menu - returning to main menu")
+                navigateBack()
+                true
+            }
+            MenuState.COACH_SPIN -> {
+                // In coach spin menu - go back to assistants
+                Log.d(TAG, "🎯 Back from coach spin menu - returning to assistants menu")
+                currentMenuState = MenuState.ASSISTANTS
+                invalidateOptionsMenu()
+                true
+            }
+            MenuState.COACH_ACTIVE -> {
+                // In active mode - go back to coach spin
+                Log.d(TAG, "🎯 Back from active mode - returning to coach spin menu")
+                isCoachActive = false
+                currentMenuState = MenuState.COACH_SPIN
+                invalidateOptionsMenu()
+                true
+            }
             MenuState.ASSISTANT, MenuState.LIVE_AGENT -> {
                 // In submenu - go back to main
                 Log.d(TAG, "🎯 Back from submenu - returning to main menu")
@@ -714,11 +743,21 @@ class MainActivity : ActionMenuActivity() {
         // Inflate menu based on current state (hierarchical navigation)
         val menuResource = when (currentMenuState) {
             MenuState.MAIN -> R.menu.main_menu
+            MenuState.ASSISTANTS -> R.menu.assistants_menu
+            MenuState.COACH_SPIN -> R.menu.coach_spin_menu
+            MenuState.COACH_ACTIVE -> R.menu.coach_active_menu
             MenuState.ASSISTANT -> R.menu.assistant_menu
             MenuState.LIVE_AGENT -> R.menu.live_agent_menu
         }
         
         menuInflater.inflate(menuResource, menu)
+        
+        // Update dynamic menu items based on state
+        if (currentMenuState == MenuState.COACH_ACTIVE) {
+            menu?.findItem(R.id.action_toggle_audio_response)?.let { audioToggle ->
+                audioToggle.title = "4. Receber Áudio [${if (audioResponseEnabled) "ON" else "OFF"}]"
+            }
+        }
         
         Log.d(TAG, "🎯 Action menu created for ${currentMenuState} with ${menu?.size()} items")
         
@@ -748,10 +787,10 @@ class MainActivity : ActionMenuActivity() {
         
         return when (item?.itemId) {
             // ============ MAIN MENU ITEMS ============
-            R.id.action_assistant -> {
-                Log.d(TAG, "🎯 Assistant menu item selected")
-                navigateToMenu(MenuState.ASSISTANT)
-                showVisualFeedback("🤖 Assistant Menu")
+            R.id.action_assistants -> {
+                Log.d(TAG, "🎯 Assistants menu item selected")
+                navigateToMenu(MenuState.ASSISTANTS)
+                showVisualFeedback("🤖 Assistants Menu")
                 true
             }
             R.id.action_live_agent -> {
@@ -787,6 +826,76 @@ class MainActivity : ActionMenuActivity() {
             R.id.action_switch_agent -> {
                 Log.d(TAG, "🎯 Live Agent Switch Agent selected")
                 switchLiveAgent()
+                true
+            }
+            
+            // ============ ASSISTANTS MENU ITEMS ============
+            R.id.action_coach_spin -> {
+                Log.d(TAG, "🎯 Coach SPIN selected")
+                navigateToMenu(MenuState.COACH_SPIN)
+                showVisualFeedback("🎯 Coach SPIN")
+                true
+            }
+            
+            // ============ COACH SPIN MENU ITEMS ============
+            R.id.action_test_connection -> {
+                Log.d(TAG, "🎯 Test Connection selected")
+                testCoachConnection()
+                true
+            }
+            
+            R.id.action_send_photo -> {
+                Log.d(TAG, "🎯 Send Photo selected")
+                sendPhotoToCoach()
+                true
+            }
+            
+            R.id.action_send_audio -> {
+                Log.d(TAG, "🎯 Send Audio selected")
+                sendAudioToCoach()
+                true
+            }
+            
+            R.id.action_agent_info -> {
+                Log.d(TAG, "🎯 Agent Info selected")
+                showAgentInfo()
+                true
+            }
+            
+            R.id.action_active_connection -> {
+                Log.d(TAG, "🎯 Active Connection selected")
+                activateCoachConnection()
+                true
+            }
+            
+            // ============ COACH ACTIVE MENU ITEMS ============
+            R.id.action_send_audio_active -> {
+                Log.d(TAG, "🎯 Send Audio (Active) selected")
+                sendAudioToCoachActive()
+                true
+            }
+            
+            R.id.action_send_photo_active -> {
+                Log.d(TAG, "🎯 Send Photo (Active) selected")
+                sendPhotoToCoachActive()
+                true
+            }
+            
+            R.id.action_new_thread -> {
+                Log.d(TAG, "🎯 New Thread selected")
+                createNewThread()
+                true
+            }
+            
+            R.id.action_toggle_audio_response -> {
+                Log.d(TAG, "🎯 Toggle Audio Response selected")
+                toggleAudioResponse()
+                true
+            }
+            
+            R.id.action_back_from_active -> {
+                Log.d(TAG, "🎯 Back from Active selected")
+                navigateBack()
                 true
             }
             
@@ -881,6 +990,9 @@ class MainActivity : ActionMenuActivity() {
             
             val backMessage = when (currentMenuState) {
                 MenuState.MAIN -> "⬅️ Back to Main Menu"
+                MenuState.ASSISTANTS -> "⬅️ Back to Assistants Menu"
+                MenuState.COACH_SPIN -> "⬅️ Back to Coach SPIN Menu"
+                MenuState.COACH_ACTIVE -> "⬅️ Back to Coach Active Mode"
                 MenuState.ASSISTANT -> "⬅️ Back to Assistant Menu"
                 MenuState.LIVE_AGENT -> "⬅️ Back to Live Agent Menu"
             }
@@ -1398,5 +1510,171 @@ class MainActivity : ActionMenuActivity() {
         }
         registerReceiver(voiceTestReceiver, voiceTestFilter)
         Log.d(TAG, "🧪 Voice test receiver registered for emulator testing")
+    }
+    
+    // ===============================
+    // COACH SPIN ASSISTANT FUNCTIONS
+    // ===============================
+    
+    /**
+     * Test connection to Coach SPIN assistant
+     */
+    private fun testCoachConnection() {
+        Log.d(TAG, "🧪 Testing Coach SPIN connection...")
+        
+        // TODO: Implement actual connection test
+        showVisualFeedback(
+            "🔗 Testing Connection...\n\n" +
+            "Coach SPIN Assistant\n" +
+            "Status: Ready for testing\n\n" +
+            "Next: Configure API endpoint"
+        )
+    }
+    
+    /**
+     * Show Coach SPIN agent information
+     */
+    private fun showAgentInfo() {
+        Log.d(TAG, "ℹ️ Showing Coach SPIN agent info")
+        
+        showVisualFeedback(
+            "🤖 Coach SPIN Assistant\n\n" +
+            "📋 Sales Coaching Agent\n" +
+            "🎯 SPIN Methodology\n" +
+            "🎤 Voice + Photo Support\n" +
+            "🧠 Thread Persistence\n\n" +
+            "Status: Standby"
+        )
+    }
+    
+    /**
+     * Send photo to Coach SPIN assistant
+     */
+    private fun sendPhotoToCoach() {
+        Log.d(TAG, "📸 Sending photo to Coach SPIN...")
+        
+        // TODO: Implement photo capture and send
+        showVisualFeedback(
+            "📸 Photo Capture\n\n" +
+            "Capturing image from M400...\n" +
+            "Encoding for assistant...\n\n" +
+            "Status: In development"
+        )
+    }
+    
+    /**
+     * Send audio to Coach SPIN assistant
+     */
+    private fun sendAudioToCoach() {
+        Log.d(TAG, "🎤 Sending audio to Coach SPIN...")
+        
+        // TODO: Implement Vosk transcription + send
+        showVisualFeedback(
+            "🎤 Audio Recording\n\n" +
+            "Recording voice input...\n" +
+            "Vosk local transcription...\n" +
+            "Sending to assistant...\n\n" +
+            "Status: In development"
+        )
+    }
+    
+    /**
+     * Activate Coach SPIN connection (enter active mode)
+     */
+    private fun activateCoachConnection() {
+        Log.d(TAG, "🚀 Activating Coach SPIN connection...")
+        
+        isCoachActive = true
+        currentMenuState = MenuState.COACH_ACTIVE
+        
+        // TODO: Initialize thread and connection
+        currentThreadId = "thread_${System.currentTimeMillis()}"
+        
+        showVisualFeedback(
+            "🚀 Coach Active Mode\n\n" +
+            "Thread: ${currentThreadId?.takeLast(8)}\n" +
+            "Status: Connected\n" +
+            "Audio Response: ${if (audioResponseEnabled) "ON" else "OFF"}\n\n" +
+            "Double-tap to show menu"
+        )
+        
+        // Note: Menu will be automatically updated when invalidateOptionsMenu() is called
+    }
+    
+    /**
+     * Send audio in active mode
+     */
+    private fun sendAudioToCoachActive() {
+        Log.d(TAG, "🎤 Sending audio in active mode...")
+        
+        if (!isCoachActive) {
+            Log.w(TAG, "❌ Not in active mode")
+            return
+        }
+        
+        // TODO: Implement quick audio send
+        showVisualFeedback(
+            "🎤 Quick Audio\n\n" +
+            "Thread: ${currentThreadId?.takeLast(8)}\n" +
+            "Recording...\n\n" +
+            "Status: Processing"
+        )
+    }
+    
+    /**
+     * Send photo in active mode
+     */
+    private fun sendPhotoToCoachActive() {
+        Log.d(TAG, "📸 Sending photo in active mode...")
+        
+        if (!isCoachActive) {
+            Log.w(TAG, "❌ Not in active mode")
+            return
+        }
+        
+        // TODO: Implement quick photo send
+        showVisualFeedback(
+            "📸 Quick Photo\n\n" +
+            "Thread: ${currentThreadId?.takeLast(8)}\n" +
+            "Capturing...\n\n" +
+            "Status: Processing"
+        )
+    }
+    
+    /**
+     * Create new thread (reset conversation)
+     */
+    private fun createNewThread() {
+        Log.d(TAG, "🔄 Creating new thread...")
+        
+        val oldThread = currentThreadId?.takeLast(8)
+        currentThreadId = "thread_${System.currentTimeMillis()}"
+        
+        showVisualFeedback(
+            "🔄 New Thread Created\n\n" +
+            "Previous: $oldThread\n" +
+            "New: ${currentThreadId?.takeLast(8)}\n\n" +
+            "Conversation reset"
+        )
+    }
+    
+    /**
+     * Toggle audio response setting
+     */
+    private fun toggleAudioResponse() {
+        audioResponseEnabled = !audioResponseEnabled
+        
+        Log.d(TAG, "🔊 Audio response: ${if (audioResponseEnabled) "enabled" else "disabled"}")
+        
+        showVisualFeedback(
+            "🔊 Audio Response\n\n" +
+            "Status: ${if (audioResponseEnabled) "ENABLED" else "DISABLED"}\n\n" +
+            "${if (audioResponseEnabled) "Assistant will speak responses" else "Text-only responses"}"
+        )
+        
+        // Rebuild menu to update toggle text
+        if (currentMenuState == MenuState.COACH_ACTIVE) {
+            invalidateOptionsMenu()
+        }
     }
 }

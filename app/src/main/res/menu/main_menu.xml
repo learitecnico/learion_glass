@@ -4,10 +4,10 @@
     
     <!-- Main Menu Items -->
     
-    <!-- 1. Assistant -->
+    <!-- 1. Assistants -->
     <item
-        android:id="@+id/action_assistant"
-        android:title="1. Assistant"
+        android:id="@+id/action_assistants"
+        android:title="1. Assistants"
         android:icon="@drawable/ic_assistant_green_24dp"
         android:orderInCategory="1"
         app:showAsAction="never" />

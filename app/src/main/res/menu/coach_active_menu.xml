@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    
+    <!-- Coach SPIN Active Mode Menu (Hidden by default) -->
+    
+    <!-- 5.1. Enviar Áudio -->
+    <item
+        android:id="@+id/action_send_audio_active"
+        android:title="1. Enviar Áudio"
+        android:icon="@drawable/ic_mic_green_24dp"
+        android:orderInCategory="1"
+        app:showAsAction="never" />
+    
+    <!-- 5.2. Enviar Foto -->
+    <item
+        android:id="@+id/action_send_photo_active"
+        android:title="2. Enviar Foto"
+        android:icon="@drawable/ic_camera_green_24dp"
+        android:orderInCategory="2"
+        app:showAsAction="never" />
+    
+    <!-- 5.3. Nova Thread -->
+    <item
+        android:id="@+id/action_new_thread"
+        android:title="3. Nova Thread"
+        android:icon="@drawable/ic_refresh_green_24dp"
+        android:orderInCategory="3"
+        app:showAsAction="never" />
+    
+    <!-- 5.4. Receber Áudio -->
+    <item
+        android:id="@+id/action_toggle_audio_response"
+        android:title="4. Receber Áudio [OFF]"
+        android:icon="@drawable/ic_speaker_green_24dp"
+        android:orderInCategory="4"
+        app:showAsAction="never" />
+    
+    <!-- 5.5. Voltar -->
+    <item
+        android:id="@+id/action_back_from_active"
+        android:title="5. Voltar"
+        android:icon="@drawable/ic_back_green_24dp"
+        android:orderInCategory="5"
+        app:showAsAction="never" />
+    
+</menu>

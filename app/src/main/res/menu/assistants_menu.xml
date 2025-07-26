@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    
+    <!-- Assistants Selection Menu -->
+    
+    <!-- 1. Coach SPIN -->
+    <item
+        android:id="@+id/action_coach_spin"
+        android:title="1. Coach SPIN"
+        android:icon="@drawable/ic_assistant_green_24dp"
+        android:orderInCategory="1"
+        app:showAsAction="never" />
+    
+    <!-- Future agents placeholder -->
+    <!-- 
+    <item
+        android:id="@+id/action_agent_2"
+        android:title="2. [Future Agent]"
+        android:icon="@drawable/ic_assistant_green_24dp"
+        android:orderInCategory="2"
+        app:showAsAction="never" />
+    -->
+    
+    <!-- Back -->
+    <item
+        android:id="@+id/action_back"
+        android:title="2. Voltar"
+        android:icon="@drawable/ic_back_green_24dp"
+        android:orderInCategory="2"
+        app:showAsAction="never" />
+    
+</menu>
