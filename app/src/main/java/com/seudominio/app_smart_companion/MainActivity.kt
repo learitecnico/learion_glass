@@ -30,6 +30,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.seudominio.app_smart_companion.assistants.SimpleAssistantService
+import com.seudominio.app_smart_companion.voice.LearionVoiceCommander
 import java.io.File
 
 class MainActivity : ActionMenuActivity() {
@@ -80,6 +81,9 @@ class MainActivity : ActionMenuActivity() {
     private var currentMenuState = MenuState.MAIN
     private val menuStack = mutableListOf<MenuState>()
     
+    // Voice Commander for hands-free control
+    private lateinit var voiceCommander: LearionVoiceCommander
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -102,6 +106,9 @@ class MainActivity : ActionMenuActivity() {
         
         // Check permissions and API key setup
         checkPermissions()
+        
+        // Initialize voice commands
+        initializeVoiceCommands()
     }
     
     /**
@@ -437,6 +444,18 @@ class MainActivity : ActionMenuActivity() {
         if (isSessionActive) {
             stopAISession()
         }
+        // Cleanup voice commander
+        if (::voiceCommander.isInitialized) {
+            voiceCommander.cleanup()
+        }
+        
+        // Cleanup voice test receiver
+        voiceTestReceiver?.let { receiver ->
+            unregisterReceiver(receiver)
+            voiceTestReceiver = null
+            Log.d(TAG, "Voice test receiver unregistered")
+        }
+        
         Log.d(TAG, "MainActivity destroyed and cleaned up")
     }
     
@@ -768,6 +787,13 @@ class MainActivity : ActionMenuActivity() {
             R.id.action_switch_agent -> {
                 Log.d(TAG, "🎯 Live Agent Switch Agent selected")
                 switchLiveAgent()
+                true
+            }
+            
+            // ============ VOICE COMMANDS ============
+            R.id.action_voice_commands -> {
+                Log.d(TAG, "🎯 Voice commands menu item selected")
+                toggleVoiceCommands()
                 true
             }
             
@@ -1104,6 +1130,9 @@ class MainActivity : ActionMenuActivity() {
         val apiKeyFilter = IntentFilter("com.seudominio.app_smart_companion.SET_API_KEY")
         registerReceiver(apiKeyReceiver, apiKeyFilter)
         Log.d(TAG, "API key configuration receiver registered")
+        
+        // Register voice test receiver for emulator testing
+        setupVoiceTestReceiver()
     }
     
     /**
@@ -1189,5 +1218,185 @@ class MainActivity : ActionMenuActivity() {
             startService(intent)
             isRecordingAudio = true
         }
+    }
+    
+    // ===============================
+    // VOICE COMMAND INTEGRATION
+    // ===============================
+    
+    /**
+     * Initialize voice command system
+     */
+    private fun initializeVoiceCommands() {
+        Log.d(TAG, "🎤 Initializing voice command system")
+        
+        voiceCommander = LearionVoiceCommander(this, { command ->
+            Log.d(TAG, "🗣️ Voice command received: ${command.action}")
+            
+            // Handle voice commands on UI thread
+            runOnUiThread {
+                handleVoiceCommand(command)
+            }
+        }, hudDisplayManager)
+        
+        // Initialize the voice system
+        voiceCommander.initialize()
+        
+        // Enable voice commands by default on M400
+        if (Build.MANUFACTURER.equals("Vuzix", ignoreCase = true)) {
+            Log.d(TAG, "🥽 Vuzix device detected - enabling voice commands")
+            voiceCommander.enable()
+        }
+    }
+    
+    /**
+     * Handle voice command actions
+     */
+    private fun handleVoiceCommand(command: LearionVoiceCommander.VoiceCommand) {
+        Log.d(TAG, "🎯 Handling voice command: ${command.action}")
+        
+        // Show enhanced visual feedback
+        if (::hudDisplayManager.isInitialized) {
+            hudDisplayManager.showVoiceCommandFeedback(command.phrase, command.action)
+        }
+        
+        // Execute command action
+        when (command.action) {
+            LearionVoiceCommander.ACTION_ASSISTANT -> {
+                Log.d(TAG, "🤖 Voice: Opening Assistant")
+                if (currentMenuState == MenuState.MAIN) {
+                    navigateToMenu(MenuState.ASSISTANT)
+                } else if (currentMenuState == MenuState.ASSISTANT) {
+                    startAssistantChat()
+                }
+            }
+            
+            LearionVoiceCommander.ACTION_LIVE_AGENT -> {
+                Log.d(TAG, "👥 Voice: Opening Live Agent")
+                if (currentMenuState == MenuState.MAIN) {
+                    navigateToMenu(MenuState.LIVE_AGENT)
+                } else if (currentMenuState == MenuState.LIVE_AGENT) {
+                    startLiveAgentChat()
+                }
+            }
+            
+            LearionVoiceCommander.ACTION_SETTINGS -> {
+                Log.d(TAG, "⚙️ Voice: Opening Settings")
+                openSettings()
+            }
+            
+            LearionVoiceCommander.ACTION_EXIT -> {
+                Log.d(TAG, "🚪 Voice: Exit requested")
+                handleExit()
+            }
+            
+            LearionVoiceCommander.ACTION_BACK -> {
+                Log.d(TAG, "⬅️ Voice: Navigate back")
+                if (menuStack.isNotEmpty()) {
+                    navigateBack()
+                } else {
+                    showVisualFeedback("⚠️ Already at main menu")
+                }
+            }
+            
+            LearionVoiceCommander.ACTION_HELP -> {
+                Log.d(TAG, "❓ Voice: Help requested")
+                showVoiceCommandHelp()
+            }
+            
+            else -> {
+                Log.w(TAG, "❌ Unknown voice command action: ${command.action}")
+                showVisualFeedback("❌ Unknown command")
+            }
+        }
+    }
+    
+    /**
+     * Show voice command help
+     */
+    private fun showVoiceCommandHelp() {
+        if (::hudDisplayManager.isInitialized) {
+            hudDisplayManager.showVoiceCommandHelp()
+        }
+    }
+    
+    /**
+     * Toggle voice commands via menu
+     */
+    private fun toggleVoiceCommands() {
+        if (::voiceCommander.isInitialized) {
+            voiceCommander.toggle()
+            
+            val status = if (voiceCommander.isEnabled()) {
+                "🎤 Voice commands enabled\nSay \"Hello Vuzix\" to start"
+            } else {
+                "🔇 Voice commands disabled"
+            }
+            
+            showVisualFeedback(status)
+        }
+    }
+    
+    // ===============================
+    // VOICE COMMAND TESTING (EMULATOR)
+    // ===============================
+    
+    private var voiceTestReceiver: BroadcastReceiver? = null
+    
+    /**
+     * Setup voice test receiver for emulator testing via ADB
+     */
+    private fun setupVoiceTestReceiver() {
+        voiceTestReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    "VOICE_TEST" -> {
+                        val phrase = intent.getStringExtra("phrase")
+                        if (phrase != null) {
+                            Log.d(TAG, "🧪 Voice test command received: '$phrase'")
+                            
+                            // Simulate voice command through our voice system
+                            if (::voiceCommander.isInitialized) {
+                                // Create a voice command and process it
+                                val command = LearionVoiceCommander.VoiceCommand(
+                                    action = LearionVoiceCommander.VOICE_COMMANDS[phrase.lowercase()] ?: "unknown",
+                                    phrase = phrase
+                                )
+                                
+                                runOnUiThread {
+                                    handleVoiceCommand(command)
+                                }
+                            }
+                        } else {
+                            Log.w(TAG, "❌ Voice test command missing phrase parameter")
+                            showVisualFeedback("❌ Missing phrase\nUsage: adb shell am broadcast -a VOICE_TEST --es phrase \"one\"")
+                        }
+                    }
+                    
+                    "VOICE_HELP" -> {
+                        Log.d(TAG, "🧪 Voice help test command")
+                        runOnUiThread {
+                            showVoiceCommandHelp()
+                        }
+                    }
+                    
+                    "VOICE_TOGGLE" -> {
+                        Log.d(TAG, "🧪 Voice toggle test command")
+                        runOnUiThread {
+                            toggleVoiceCommands()
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Register voice test receiver
+        val voiceTestFilter = IntentFilter().apply {
+            addAction("VOICE_TEST")
+            addAction("VOICE_HELP")
+            addAction("VOICE_TOGGLE")
+        }
+        registerReceiver(voiceTestReceiver, voiceTestFilter)
+        Log.d(TAG, "🧪 Voice test receiver registered for emulator testing")
     }
 }

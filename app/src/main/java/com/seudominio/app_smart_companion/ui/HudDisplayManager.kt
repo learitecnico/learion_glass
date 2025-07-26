@@ -41,6 +41,92 @@ class HudDisplayManager(
         }
     }
     
+    private var originalTextBeforeVoice: String? = null
+    
+    /**
+     * Show voice listening indicator - appears when "Hello Vuzix" is detected
+     */
+    fun showVoiceListening() {
+        uiHandler.post {
+            try {
+                Log.d(TAG, "🎤 Voice listening started - showing indicator")
+                
+                // Save current text to restore later
+                originalTextBeforeVoice = hudTextView.text.toString()
+                
+                // Small listening indicator in corner
+                val listeningIndicator = "🎤"
+                
+                // Add indicator to current text
+                val currentText = if (originalTextBeforeVoice!!.isNotEmpty()) {
+                    "${originalTextBeforeVoice!!}\n\n$listeningIndicator"
+                } else {
+                    listeningIndicator
+                }
+                
+                hudTextView.text = currentText
+                Log.d(TAG, "✅ Voice listening indicator shown")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error showing voice listening indicator", e)
+            }
+        }
+    }
+    
+    /**
+     * Hide voice indicator and restore original text when command is processed
+     */
+    fun hideVoiceIndicator() {
+        uiHandler.post {
+            try {
+                Log.d(TAG, "🎤 Voice command processed - hiding indicator")
+                
+                // Restore original text
+                if (originalTextBeforeVoice != null) {
+                    if (originalTextBeforeVoice!!.isNotEmpty()) {
+                        hudTextView.text = originalTextBeforeVoice!!
+                    } else {
+                        clearDisplay()
+                    }
+                    originalTextBeforeVoice = null
+                }
+                
+                Log.d(TAG, "✅ Voice indicator hidden")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error hiding voice indicator", e)
+            }
+        }
+    }
+    
+    /**
+     * Legacy method - now just calls hideVoiceIndicator for compatibility
+     */
+    fun showVoiceCommandFeedback(command: String, action: String) {
+        Log.d(TAG, "🗣️ Voice command recognized: $command → $action")
+        hideVoiceIndicator()
+    }
+    
+    /**
+     * Show voice command help with formatted layout
+     */
+    fun showVoiceCommandHelp() {
+        val helpText = "🗣️ VOICE COMMANDS HELP\n\n" +
+            "🔤 WAKE WORD: \"Hello Vuzix\"\n\n" +
+            "📋 AVAILABLE COMMANDS:\n" +
+            "┌─────────────────────────┐\n" +
+            "│ \"One\" → Assistant       │\n" +
+            "│ \"Two\" → Live Agent      │\n" +
+            "│ \"Three\" → Settings      │\n" +
+            "│ \"Four\" → Exit           │\n" +
+            "│ \"Back\" → Go Back        │\n" +
+            "│ \"Help\" → Show This      │\n" +
+            "│ \"Voice off\" → Stop      │\n" +
+            "└─────────────────────────┘\n\n" +
+            "💡 TIP: Numbers work best!\n" +
+            "📞 Example: \"Hello Vuzix, One\""
+            
+        showStatusMessage(helpText, 10000L)
+    }
+    
     /**
      * Update transcription text with throttling for battery optimization
      */

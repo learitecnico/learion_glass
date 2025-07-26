@@ -62,6 +62,10 @@ dependencies {
     implementation("com.vuzix:hud-actionmenu:2.8.4")
     // Note: hud-resources é incluído automaticamente pelo hud-actionmenu
     
+    // Vuzix Speech SDK for voice commands (optional - may not be in maven)
+    // If not available via maven, download from Vuzix developer portal
+    // implementation("com.vuzix:speech-sdk:1.91")
+    
     // OkHttp for WebSocket - OpenAI Realtime API
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     
