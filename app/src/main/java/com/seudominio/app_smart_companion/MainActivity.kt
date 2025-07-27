@@ -2533,8 +2533,8 @@ class MainActivity : ActionMenuActivity() {
      */
     private fun testAudioFlowDirectly() {
         try {
-            Log.d(TAG, "🧪 TESTE DIRETO: Chamando sendAudioToCoach()...")
-            sendAudioToCoach()
+            Log.d(TAG, "🧪 TESTE DIRETO: Chamando sendAudioToAssistant()...")
+            sendAudioToAssistant()
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro no teste direto de áudio", e)
         }
