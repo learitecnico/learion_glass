@@ -58,7 +58,8 @@
       "WebFetch(domain:webrtchacks.com)",
       "WebFetch(domain:central.sonatype.com)",
       "Bash(git fetch:*)",
-      "WebFetch(domain:vuzix.github.io)"
+      "WebFetch(domain:vuzix.github.io)",
+      "Bash(timeout:*)"
     ],
     "deny": []
   }

@@ -8,6 +8,8 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -26,11 +28,16 @@ import android.content.SharedPreferences
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.seudominio.app_smart_companion.assistants.SimpleAssistantService
 import com.seudominio.app_smart_companion.voice.LearionVoiceCommander
+import com.seudominio.app_smart_companion.vosk.VoskTranscriptionService
+import com.seudominio.app_smart_companion.audio.CoachAudioRecorder
+import com.seudominio.app_smart_companion.assistants.OpenAIAssistantClient
+import com.seudominio.app_smart_companion.assistants.AssistantAudioManager
 import java.io.File
 
 class MainActivity : ActionMenuActivity() {
@@ -91,6 +98,9 @@ class MainActivity : ActionMenuActivity() {
     private var isCoachActive = false  // Coach SPIN active connection state
     private var currentThreadId: String? = null  // Active conversation thread
     private var audioResponseEnabled = false  // Toggle for audio responses (default OFF)
+    private var voskTranscriptionService: VoskTranscriptionService? = null  // Vosk local transcription
+    private var coachAudioRecorder: CoachAudioRecorder? = null  // Audio recorder for Coach
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())  // UI thread handler
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -106,6 +116,9 @@ class MainActivity : ActionMenuActivity() {
         
         // Initialize shared preferences for API key storage
         sharedPreferences = getSharedPreferences("smart_companion_prefs", Context.MODE_PRIVATE)
+        
+        // Auto-configure API key from .env file
+        autoConfigureApiKey()
         
         // Initialize broadcast receivers
         setupBroadcastReceivers()
@@ -137,8 +150,7 @@ class MainActivity : ActionMenuActivity() {
         
         // Legacy HudMessageHandler removed - standalone mode doesn't need message handler
         
-        // Show initial status
-        hudDisplayManager.showStatusMessage("Learion Glass initializing...")
+        // Keep HUD clean on startup
         hudDisplayManager.updateConnectionStatus(false)
         
         Log.d(TAG, "HUD components initialized")
@@ -790,13 +802,13 @@ class MainActivity : ActionMenuActivity() {
             R.id.action_assistants -> {
                 Log.d(TAG, "🎯 Assistants menu item selected")
                 navigateToMenu(MenuState.ASSISTANTS)
-                showVisualFeedback("🤖 Assistants Menu")
+                showVisualFeedback("Assistants Menu")
                 true
             }
             R.id.action_live_agent -> {
                 Log.d(TAG, "🎯 Live Agent menu item selected")
                 navigateToMenu(MenuState.LIVE_AGENT)
-                showVisualFeedback("👥 Live Agent Menu")
+                showVisualFeedback("Live Agent Menu")
                 true
             }
             R.id.action_exit -> {
@@ -833,7 +845,7 @@ class MainActivity : ActionMenuActivity() {
             R.id.action_coach_spin -> {
                 Log.d(TAG, "🎯 Coach SPIN selected")
                 navigateToMenu(MenuState.COACH_SPIN)
-                showVisualFeedback("🎯 Coach SPIN")
+                showVisualFeedback("Coach SPIN")
                 true
             }
             
@@ -965,6 +977,14 @@ class MainActivity : ActionMenuActivity() {
     private fun navigateToMenu(newState: MenuState) {
         Log.d(TAG, "🎯 Navigating from ${currentMenuState} to ${newState}")
         
+        // Clear HUD when leaving Coach SPIN active mode
+        if (currentMenuState == MenuState.COACH_ACTIVE || currentMenuState == MenuState.COACH_SPIN) {
+            if (newState != MenuState.COACH_ACTIVE && newState != MenuState.COACH_SPIN) {
+                clearHudDisplay()
+                Log.d(TAG, "🧹 HUD cleared - leaving Coach SPIN area")
+            }
+        }
+        
         // Push current state to stack for back navigation
         if (currentMenuState != newState) {
             menuStack.add(currentMenuState)
@@ -972,11 +992,24 @@ class MainActivity : ActionMenuActivity() {
         
         currentMenuState = newState
         
+        // No initialization message needed - keep HUD clean
+        
         // Trigger menu recreation (ActionMenuActivity specific)
         invalidateActionMenu()
         
         Log.d(TAG, "🎯 Navigation complete. Menu stack size: ${menuStack.size}")
     }
+    
+    /**
+     * Clear HUD display
+     */
+    private fun clearHudDisplay() {
+        if (::hudDisplayManager.isInitialized) {
+            hudDisplayManager.clearDisplay()
+            Log.d(TAG, "🧹 HUD display cleared")
+        }
+    }
+    
     
     /**
      * Navigate back to previous menu
@@ -1016,12 +1049,38 @@ class MainActivity : ActionMenuActivity() {
     }
     
     /**
+     * Show temporary message (for "Gravando..." and "Aguardando resposta...")
+     */
+    private fun showTemporaryMessage(message: String, durationMs: Long = 3000L) {
+        Log.d(TAG, "🔍 showTemporaryMessage called: '$message', HUD initialized: ${::hudDisplayManager.isInitialized}")
+        if (::hudDisplayManager.isInitialized) {
+            hudDisplayManager.showCleanTemporaryMessage(message, durationMs)
+            Log.d(TAG, "📱 Temporary message sent to HUD: $message")
+        } else {
+            Log.e(TAG, "❌ HudDisplayManager not initialized for temporary message: $message")
+        }
+    }
+    
+    /**
+     * Show permanent message (for Coach SPIN responses)
+     */
+    private fun showPermanentMessage(message: String) {
+        Log.d(TAG, "🔍 showPermanentMessage called: '$message', HUD initialized: ${::hudDisplayManager.isInitialized}")
+        if (::hudDisplayManager.isInitialized) {
+            hudDisplayManager.updateTextImmediate(message)
+            Log.d(TAG, "💬 Permanent message sent to HUD: $message")
+        } else {
+            Log.e(TAG, "❌ HudDisplayManager not initialized for permanent message: $message")
+        }
+    }
+    
+    /**
      * Start Assistant chat session
      */
     private fun startAssistantChat() {
         Log.d(TAG, "🤖 Starting Assistant chat session")
         
-        showVisualFeedback("🤖 Starting Assistant Chat...")
+        showVisualFeedback("Starting Assistant Chat...")
         
         // Use existing assistant logic (HTTP REST API)
         openAssistants()
@@ -1563,19 +1622,178 @@ class MainActivity : ActionMenuActivity() {
     }
     
     /**
-     * Send audio to Coach SPIN assistant
+     * Send audio to Coach SPIN assistant using new reusable pattern
      */
     private fun sendAudioToCoach() {
         Log.d(TAG, "🎤 Sending audio to Coach SPIN...")
         
-        // TODO: Implement Vosk transcription + send
-        showVisualFeedback(
-            "🎤 Audio Recording\n\n" +
-            "Recording voice input...\n" +
-            "Vosk local transcription...\n" +
-            "Sending to assistant...\n\n" +
-            "Status: In development"
+        // NEW PATTERN: Use AssistantAudioManager for reusable audio-to-assistant flow
+        sendAudioToAssistantNewPattern()
+    }
+    
+    /**
+     * NEW REUSABLE PATTERN: Audio-to-Assistant using AssistantAudioManager
+     * This pattern can be copied and reused for any assistant
+     */
+    private fun sendAudioToAssistantNewPattern() {
+        // Get API key
+        val apiKey = getApiKey()
+        if (apiKey.isNullOrEmpty()) {
+            showPermanentMessage("API key não configurada")
+            return
+        }
+        
+        // Coach SPIN Assistant ID
+        val coachSpinAssistantId = "asst_hXcg5nxjUuv2EMcJoiJbMIBN"
+        
+        // Create AssistantAudioManager instance
+        val audioManager = AssistantAudioManager(
+            context = this,
+            lifecycleScope = lifecycleScope,
+            assistantId = coachSpinAssistantId,
+            apiKey = apiKey
         )
+        
+        // Start audio-to-assistant flow with callbacks
+        audioManager.startAudioToAssistant(
+            callback = object : AssistantAudioManager.AudioToAssistantCallback {
+                override fun onRecordingStarted() {
+                    showTemporaryMessage("Gravando...")
+                }
+                
+                override fun onProcessingStarted() {
+                    showTemporaryMessage("Aguardando resposta...")
+                }
+                
+                override fun onAssistantResponse(response: String) {
+                    showPermanentMessage("Coach SPIN: $response")
+                }
+                
+                override fun onError(error: String) {
+                    showPermanentMessage("Erro: $error")
+                }
+            },
+            threadId = if (isCoachActive) currentThreadId else null, // Use existing thread if in active mode
+            language = "pt" // Portuguese
+        )
+    }
+    
+    /**
+     * Send audio file directly to Coach SPIN via WebSocket (bypasses Vosk)
+     */
+    private fun sendAudioFileToCoachSPIN(isActiveMode: Boolean) {
+        Log.d(TAG, "🌐 Sending audio file to Coach SPIN via Companion Desktop...")
+        
+        val threadInfo = if (isActiveMode) {
+            "Thread: ${currentThreadId?.takeLast(8)}"
+        } else {
+            "New conversation"
+        }
+        
+        showTemporaryMessage("Gravando...")
+        
+        // Start audio recording/processing
+        if (CoachAudioRecorder.isEmulator()) {
+            Log.d(TAG, "🎮 Emulator detected - using test audio file")
+            
+            // Get test audio file and send via WebSocket
+            val audioRecorder = CoachAudioRecorder(this)
+            audioRecorder.startRecording(object : CoachAudioRecorder.AudioRecordingCallback {
+                override fun onRecordingStarted() {
+                    Log.d(TAG, "✅ Test audio processing started")
+                }
+                
+                override fun onAudioData(audioData: ByteArray) {
+                    // Not used in direct file approach for test mode
+                }
+                
+                override fun onAmplitudeUpdate(amplitude: Int) {
+                    // Not used in test mode
+                }
+                
+                override fun onRecordingCompleted() {
+                    Log.d(TAG, "📄 Test audio processing completed")
+                    
+                    // In emulator mode, get the actual test file that was processed
+                    val testAudioFile = File(cacheDir, "teste_audio.wav")
+                    
+                    // Ensure file exists (copy from assets if needed)
+                    if (!testAudioFile.exists()) {
+                        try {
+                            val inputStream = assets.open("teste_audio.wav")
+                            testAudioFile.outputStream().use { output ->
+                                inputStream.copyTo(output)
+                            }
+                            Log.d(TAG, "📄 Test audio file copied from assets")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "❌ Failed to copy test audio: ${e.message}")
+                            showVisualFeedback("Erro de áudio")
+                            return
+                        }
+                    }
+                    
+                    sendWAVFileToWhisperAPI(testAudioFile, isActiveMode)
+                }
+                
+                override fun onRecordingError(error: String) {
+                    Log.e(TAG, "❌ Test audio error: $error")
+                    showVisualFeedback("Erro de áudio")
+                }
+            })
+        } else {
+            // Real device recording - TODO: implement real recording
+            showVisualFeedback("Gravação não implementada")
+        }
+    }
+    
+    /**
+     * Send WAV file directly to OpenAI Whisper API for transcription
+     */
+    private fun sendWAVFileToWhisperAPI(audioFile: File, isActiveMode: Boolean) {
+        Log.d(TAG, "🎤 Sending WAV file to OpenAI Whisper API: ${audioFile.name}")
+        
+        // Get API key
+        val apiKey = sharedPreferences.getString("api_key", null)
+        if (apiKey.isNullOrEmpty()) {
+            showVisualFeedback("API Key required")
+            return
+        }
+        
+        // Validate API key format
+        val whisperService = com.seudominio.app_smart_companion.openai.OpenAIWhisperService(this)
+        if (!whisperService.isValidApiKey(apiKey)) {
+            showVisualFeedback("Invalid API key")
+            return
+        }
+        
+        showTemporaryMessage("Aguardando resposta...")
+        
+        lifecycleScope.launch {
+            try {
+                whisperService.transcribeAudio(
+                    audioFile = audioFile,
+                    apiKey = apiKey,
+                    language = "pt", // Portuguese
+                    callback = object : com.seudominio.app_smart_companion.openai.OpenAIWhisperService.TranscriptionCallback {
+                        override fun onTranscriptionSuccess(transcript: String) {
+                            Log.d(TAG, "🎯 Whisper transcription success: '$transcript'")
+                            
+                            // Send to Coach SPIN Assistant
+                            sendTranscriptToCoachSPIN(transcript, isActiveMode)
+                        }
+                        
+                        override fun onTranscriptionError(error: String) {
+                            Log.e(TAG, "❌ Whisper transcription error: $error")
+                            showVisualFeedback("Erro de transcrição")
+                        }
+                    }
+                )
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error calling Whisper API: ${e.message}")
+                showVisualFeedback("Erro de API")
+            }
+        }
     }
     
     /**
@@ -1602,7 +1820,7 @@ class MainActivity : ActionMenuActivity() {
     }
     
     /**
-     * Send audio in active mode
+     * Send audio in active mode using Vosk local transcription
      */
     private fun sendAudioToCoachActive() {
         Log.d(TAG, "🎤 Sending audio in active mode...")
@@ -1612,13 +1830,8 @@ class MainActivity : ActionMenuActivity() {
             return
         }
         
-        // TODO: Implement quick audio send
-        showVisualFeedback(
-            "🎤 Quick Audio\n\n" +
-            "Thread: ${currentThreadId?.takeLast(8)}\n" +
-            "Recording...\n\n" +
-            "Status: Processing"
-        )
+        // NOVA ABORDAGEM: Enviar WAV diretamente via WebSocket para Companion Desktop
+        sendAudioFileToCoachSPIN(isActiveMode = true)
     }
     
     /**
@@ -1675,6 +1888,351 @@ class MainActivity : ActionMenuActivity() {
         // Rebuild menu to update toggle text
         if (currentMenuState == MenuState.COACH_ACTIVE) {
             invalidateOptionsMenu()
+        }
+    }
+    
+    // ===============================
+    // VOSK TRANSCRIPTION INTEGRATION
+    // ===============================
+    
+    /**
+     * Initialize Vosk transcription service
+     */
+    private fun initializeVoskService() {
+        if (voskTranscriptionService != null) {
+            Log.d(TAG, "🎤 Vosk service already initialized")
+            return
+        }
+        
+        Log.d(TAG, "🎤 Initializing Vosk transcription service...")
+        
+        val callback = object : VoskTranscriptionService.TranscriptionCallback {
+            override fun onTranscriptionResult(text: String, isFinal: Boolean) {
+                Log.d(TAG, "📝 Vosk transcript ${if (isFinal) "FINAL" else "PARTIAL"}: '$text'")
+                // Results are handled in the specific transcription callbacks
+            }
+            
+            override fun onTranscriptionError(error: String) {
+                Log.e(TAG, "❌ Vosk transcription error: $error")
+                showVisualFeedback("❌ Transcription Error\n\n$error")
+            }
+            
+            override fun onServiceReady() {
+                Log.d(TAG, "✅ Vosk service ready for transcription")
+                // Start listening immediately when ready
+                voskTranscriptionService?.startListening()
+            }
+        }
+        
+        voskTranscriptionService = VoskTranscriptionService(this, callback)
+        voskTranscriptionService?.initialize()
+    }
+    
+    /**
+     * Start Vosk transcription process
+     */
+    private fun startVoskTranscription(onTranscriptComplete: (String) -> Unit) {
+        val service = voskTranscriptionService
+        if (service == null) {
+            Log.e(TAG, "❌ Vosk service not initialized")
+            showVisualFeedback("❌ Transcription service not available")
+            return
+        }
+        
+        // Check audio permission
+        if (!hasAudioPermission()) {
+            Log.e(TAG, "❌ Audio permission not granted")
+            showVisualFeedback("❌ Audio permission required\n\nPlease grant permission in settings")
+            return
+        }
+        
+        // Initialize audio recorder if needed
+        if (coachAudioRecorder == null) {
+            coachAudioRecorder = CoachAudioRecorder(this)
+        }
+        
+        // Show recording feedback
+        showVisualFeedback(
+            "🎤 Coach SPIN Audio\n\n" +
+            "🔴 Recording voice...\n" +
+            "🧠 Local transcription...\n" +
+            "⏳ Processing with Vosk\n\n" +
+            "Speak now..."
+        )
+        
+        // Start Vosk listening
+        service.startListening()
+        
+        // Accumulated transcript
+        val transcriptBuilder = StringBuilder()
+        var lastUpdateTime = 0L
+        
+        // Start real audio recording
+        coachAudioRecorder?.startRecording(object : CoachAudioRecorder.AudioRecordingCallback {
+            override fun onRecordingStarted() {
+                Log.d(TAG, "🎤 Audio recording started")
+            }
+            
+            override fun onAudioData(audioData: ByteArray) {
+                // Send audio chunks to Vosk for transcription
+                service.processAudioChunk(audioData)
+            }
+            
+            override fun onAmplitudeUpdate(amplitude: Int) {
+                // Update UI with audio level if needed
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastUpdateTime > 100) { // Update every 100ms
+                    lastUpdateTime = currentTime
+                    val level = when {
+                        amplitude > 1500 -> "███"
+                        amplitude > 1000 -> "██░"
+                        amplitude > 500 -> "█░░"
+                        else -> "░░░"
+                    }
+                    
+                    mainHandler.post {
+                        showVisualFeedback(
+                            "🎤 Recording Audio\n\n" +
+                            "Level: $level\n" +
+                            "Transcript: ${transcriptBuilder.toString().takeLast(50)}...\n\n" +
+                            "Stop speaking to finish"
+                        )
+                    }
+                }
+            }
+            
+            override fun onRecordingCompleted() {
+                Log.d(TAG, "✅ Audio recording completed")
+                service.stopListening()
+                
+                var finalTranscript = transcriptBuilder.toString().trim()
+                
+                // Only proceed if we have a real transcript
+                if (finalTranscript.isNotEmpty()) {
+                    mainHandler.post {
+                        showVisualFeedback(
+                            "📝 Transcript Complete\n\n" +
+                            "\"$finalTranscript\"\n\n" +
+                            "Sending to OpenAI Assistant..."
+                        )
+                        
+                        onTranscriptComplete(finalTranscript)
+                    }
+                } else {
+                    mainHandler.post {
+                        if (CoachAudioRecorder.isEmulator()) {
+                            showVisualFeedback(
+                                "❌ No transcript from Vosk\n\n" +
+                                "📁 Add test_audio.wav file to:\n" +
+                                "/sdcard/Android/data/com.seudominio.app_smart_companion/files/\n\n" +
+                                "See REAL_AUDIO_TEST_GUIDE.md"
+                            )
+                        } else {
+                            showVisualFeedback("❌ No speech detected\n\nPlease try again")
+                        }
+                    }
+                }
+            }
+            
+            override fun onRecordingError(error: String) {
+                Log.e(TAG, "❌ Recording error: $error")
+                service.stopListening()
+                
+                mainHandler.post {
+                    showVisualFeedback("❌ Recording Error\n\n$error")
+                }
+            }
+        })
+        
+        // Update Vosk callback to accumulate transcripts
+        val currentCallback = voskTranscriptionService
+        if (currentCallback != null) {
+            // Create new callback that accumulates transcripts
+            val accumulatingCallback = object : VoskTranscriptionService.TranscriptionCallback {
+                override fun onTranscriptionResult(text: String, isFinal: Boolean) {
+                    if (text.isNotBlank()) {
+                        if (isFinal) {
+                            transcriptBuilder.append(text).append(" ")
+                        }
+                        Log.d(TAG, "📝 Vosk transcript ${if (isFinal) "FINAL" else "PARTIAL"}: '$text'")
+                    }
+                }
+                
+                override fun onTranscriptionError(error: String) {
+                    Log.e(TAG, "❌ Vosk error: $error")
+                    coachAudioRecorder?.stopRecording()
+                }
+                
+                override fun onServiceReady() {
+                    Log.d(TAG, "✅ Vosk ready")
+                    // Start listening immediately when ready
+                    voskTranscriptionService?.startListening()
+                }
+            }
+            
+            // Reinitialize with accumulating callback
+            voskTranscriptionService = VoskTranscriptionService(this, accumulatingCallback)
+            voskTranscriptionService?.initialize()
+        }
+    }
+    
+    /**
+     * Check if audio permission is granted
+     */
+    private fun hasAudioPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+    
+    /**
+     * Send transcript to Coach SPIN via OpenAI Assistants API
+     */
+    private fun sendTranscriptToCoachSPIN(transcript: String, isActiveMode: Boolean) {
+        Log.d(TAG, "🚀 Sending transcript to Coach SPIN: '$transcript'")
+        
+        val threadInfo = if (isActiveMode) {
+            "Thread: ${currentThreadId?.takeLast(8)}"
+        } else {
+            "New conversation"
+        }
+        
+        // Keep "Aguardando resposta..." until we get the Coach SPIN response
+        
+        // Use the OpenAI Assistants API client
+        lifecycleScope.launch {
+            try {
+                // Get API key (should be configured)
+                val apiKey = sharedPreferences.getString("api_key", null)
+                if (apiKey.isNullOrEmpty()) {
+                    showVisualFeedback("❌ API Key not configured\n\nPlease configure in settings")
+                    return@launch
+                }
+                
+                // Coach SPIN Assistant ID
+                val coachSpinAssistantId = "asst_hXcg5nxjUuv2EMcJoiJbMIBN"
+                
+                // Create client
+                val assistantClient = OpenAIAssistantClient(
+                    apiKey = apiKey,
+                    onResponse = { response: String ->
+                        mainHandler.post {
+                            // Use permanent display for Coach SPIN responses
+                            showPermanentMessage("Coach SPIN: $response")
+                            
+                            // If audio response is enabled, convert text to speech
+                            if (audioResponseEnabled) {
+                                // TODO: Implement TTS for audio response
+                                Log.d(TAG, "🔊 TTS would play: ${response.take(50)}...")
+                            }
+                        }
+                    },
+                    onError = { error: String ->
+                        mainHandler.post {
+                            showVisualFeedback("Erro")
+                        }
+                    },
+                    onStatusUpdate = { status: String ->
+                        // Don't show status updates - keep "Aguardando resposta..."
+                    }
+                )
+                
+                // Set assistant ID
+                assistantClient.setAssistantId(coachSpinAssistantId)
+                
+                // Create or use existing thread
+                if (!isActiveMode || currentThreadId == null) {
+                    val newThreadId = assistantClient.createThread()
+                    if (newThreadId != null) {
+                        currentThreadId = newThreadId
+                        Log.d(TAG, "✅ Created new thread: $newThreadId")
+                    } else {
+                        showVisualFeedback("Erro ao criar conversa")
+                        return@launch
+                    }
+                }
+                
+                // Send the transcript
+                val messageSent = assistantClient.sendTextMessage(transcript)
+                if (messageSent) {
+                    Log.d(TAG, "✅ Message sent, executing run...")
+                    
+                    // Execute run to get response
+                    val runExecuted = assistantClient.executeRun()
+                    if (!runExecuted) {
+                        showVisualFeedback("Sem resposta do Coach")
+                    }
+                } else {
+                    showVisualFeedback("Erro ao enviar mensagem")
+                }
+                
+                // Clean up
+                assistantClient.cleanup()
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Exception in Coach SPIN integration", e)
+                mainHandler.post {
+                    showVisualFeedback("Erro")
+                }
+            }
+        }
+    }
+    
+    /**
+     * TEMPORÁRIO: Teste direto do fluxo de áudio para debug
+     */
+    private fun testAudioFlowDirectly() {
+        try {
+            Log.d(TAG, "🧪 TESTE DIRETO: Chamando sendAudioToCoach()...")
+            sendAudioToCoach()
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Erro no teste direto de áudio", e)
+        }
+    }
+    
+    // =====================================
+    // API KEY CONFIGURATION
+    // =====================================
+    
+    /**
+     * Auto-configure OpenAI API key from .env file in assets
+     */
+    private fun autoConfigureApiKey() {
+        try {
+            // Check if API key is already configured
+            val existingKey = sharedPreferences.getString("api_key", null)
+            if (!existingKey.isNullOrEmpty() && existingKey.startsWith("sk-")) {
+                Log.d(TAG, "✅ API key already configured")
+                return
+            }
+            
+            // Try to read env.txt file from assets (renamed from .env for Android compatibility)
+            val envContent = assets.open("env.txt").bufferedReader().use { it.readText() }
+            
+            // Parse OPENAI_API_KEY from .env content
+            val lines = envContent.lines()
+            for (line in lines) {
+                if (line.startsWith("OPENAI_API_KEY=") && !line.contains("YOUR_OPENAI_API_KEY_HERE")) {
+                    val apiKey = line.substringAfter("OPENAI_API_KEY=").trim()
+                    if (apiKey.startsWith("sk-")) {
+                        // Save to SharedPreferences
+                        sharedPreferences.edit()
+                            .putString("api_key", apiKey)
+                            .apply()
+                        
+                        Log.d(TAG, "✅ API key auto-configured from env.txt file")
+                        // API key configured silently
+                        return
+                    }
+                }
+            }
+            
+            Log.w(TAG, "⚠️ No valid API key found in env.txt file")
+            
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ Could not auto-configure API key: ${e.message}")
+            // This is not a critical error - user can still configure manually
         }
     }
 }

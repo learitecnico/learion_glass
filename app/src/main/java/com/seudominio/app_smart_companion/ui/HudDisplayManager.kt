@@ -161,6 +161,9 @@ class HudDisplayManager(
                 // Update HUD TextView (SmartGlassManager pattern)
                 hudTextView.text = displayText
                 
+                // DEBUG: Log TextView state after update
+                Log.d(TAG, "🔍 TextView updated - text: '${hudTextView.text}', visibility: ${hudTextView.visibility}, bounds: ${hudTextView.left},${hudTextView.top}-${hudTextView.right},${hudTextView.bottom}")
+                
                 // Add to history for debugging
                 addToHistory(displayText)
                 
@@ -221,6 +224,26 @@ class HudDisplayManager(
             }, durationMs)
             
             Log.d(TAG, "Status message shown: $message")
+        }
+    }
+    
+    /**
+     * Show clean temporary message without emoji prefix (for Coach SPIN)
+     */
+    fun showCleanTemporaryMessage(message: String, durationMs: Long = 3000L) {
+        uiHandler.post {
+            hudTextView.text = message
+            
+            // DEBUG: Log TextView state after clean temp update
+            Log.d(TAG, "🔍 Clean temp TextView updated - text: '${hudTextView.text}', visibility: ${hudTextView.visibility}, bounds: ${hudTextView.left},${hudTextView.top}-${hudTextView.right},${hudTextView.bottom}")
+            
+            // Clear after delay (don't restore - Coach SPIN workflow)
+            uiHandler.postDelayed({
+                // Don't restore - let next message take over
+                Log.d(TAG, "Clean temporary message expired: $message")
+            }, durationMs)
+            
+            Log.d(TAG, "Clean temporary message shown: $message")
         }
     }
     

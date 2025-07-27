@@ -48,7 +48,7 @@
             android:background="@drawable/vuzix_text_border"
             android:padding="12dp"
             android:gravity="start"
-            android:text="Learion Glass ready...\nInitializing AI assistant..."
+            android:text=""
             android:lineSpacingExtra="4dp"
             android:maxLines="12"
             android:scrollHorizontally="false"

@@ -1,3 +1,5 @@
+import java.util.UUID
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -92,6 +94,13 @@ dependencies {
     // LocalBroadcastManager for Assistant service communication
     implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
     
+    // Vosk local speech recognition
+    implementation("net.java.dev.jna:jna:5.8.0@aar")
+    implementation("com.alphacephei:vosk-android:0.3.34@aar")
+    
+    // EventBus for transcript events
+    implementation("org.greenrobot:eventbus:3.3.1")
+    
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -99,4 +108,29 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+// Vosk model preparation tasks
+tasks.register("genUUID_pt") {
+    val uuid = UUID.randomUUID().toString()
+    val odir = file("${layout.buildDirectory.get()}/generated/assets/model-pt-br")
+    val ofile = file("$odir/uuid")
+    doLast {
+        mkdir(odir)
+        ofile.writeText(uuid)
+    }
+}
+
+tasks.register("genUUID_en") {
+    val uuid = UUID.randomUUID().toString()
+    val odir = file("${layout.buildDirectory.get()}/generated/assets/model-en-us")
+    val ofile = file("$odir/uuid")
+    doLast {
+        mkdir(odir)
+        ofile.writeText(uuid)
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn("genUUID_pt", "genUUID_en")
 }

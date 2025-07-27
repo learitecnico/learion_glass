@@ -130,3 +130,4 @@ keys/
 
 # Environment files with sensitive data
 .env
+app/src/main/assets/env.txt
