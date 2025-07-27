@@ -68,6 +68,7 @@ class CameraCapture(
     }
     
     fun initialize() {
+        Log.d(TAG, "📸 Initializing camera for M400")
         startBackgroundThread()
         openCamera()
     }
@@ -173,7 +174,7 @@ class CameraCapture(
         
         if (reader == null || session == null) {
             Log.e(TAG, "Camera not ready for capture")
-            return
+            throw IllegalStateException("Camera not initialized or ready for capture")
         }
         
         try {

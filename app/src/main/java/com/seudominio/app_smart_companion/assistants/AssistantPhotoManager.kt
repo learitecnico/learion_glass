@@ -131,12 +131,17 @@ class AssistantPhotoManager(
     private fun capturePhoto(callback: (ByteArray) -> Unit) {
         Log.d(TAG, "📷 Capturando foto...")
         
-        cameraCapture?.takePicture { imageBytes ->
-            Log.d(TAG, "✅ Foto capturada e comprimida: ${imageBytes.size} bytes")
-            callback(imageBytes)
-        } ?: run {
-            Log.e(TAG, "❌ CameraCapture não inicializada")
-            throw IllegalStateException("Câmera não inicializada")
+        try {
+            cameraCapture?.takePicture { imageBytes ->
+                Log.d(TAG, "✅ Foto capturada e comprimida: ${imageBytes.size} bytes")
+                callback(imageBytes)
+            } ?: run {
+                Log.e(TAG, "❌ CameraCapture não inicializada")
+                throw IllegalStateException("Câmera não inicializada")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Erro na captura da foto: ${e.message}", e)
+            throw Exception("Falha na captura da foto: ${e.message}")
         }
     }
     

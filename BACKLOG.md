@@ -46,11 +46,21 @@ photoManager.startPhotoToAssistant(
 )
 ```
 
-**PRÓXIMOS PASSOS:**
-1. 🔑 **Configurar API key** para testar pipeline completo
-2. 📸 **Testar Photo → Vision → Assistant** end-to-end
-3. 🎵 **Validar que audio continua funcionando**
-4. 🔊 **PASSO 8.3**: Implementar TTS para respostas
+**✅ STATUS ATUAL (PRONTO PARA M400):**
+- ✅ **API Key**: Carregamento automático do assets/env.txt funcionando
+- ✅ **Photo Capture**: Implementação real para M400 (sem simulação)
+- ✅ **HUD Messages**: Sistema restaurado e funcionando perfeitamente
+- ✅ **Error Handling**: Tratamento robusto de erros de câmera
+
+**🎯 PRÓXIMOS PASSOS (M400 REAL):**
+1. 🥽 **Testar no M400**: Photo → Vision → Assistant pipeline completo
+2. 🎵 **Validar áudio**: Confirmar que sistema de áudio continua funcionando
+3. 🔊 **PASSO 8.3**: Implementar TTS para respostas de áudio
+4. 🧪 **Testes finais**: Integração completa Coach SPIN
+
+**⚠️ NOTA IMPORTANTE:**
+- **Emulador**: Mostrará erro "Falha na captura da foto" (comportamento esperado)
+- **M400**: Deve funcionar com câmera real e pipeline completo
 
 ## 🎉 **CONQUISTA ANTERIOR: ASSISTANT AUDIO PATTERN REFACTORED**
 

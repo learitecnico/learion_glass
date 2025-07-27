@@ -359,33 +359,33 @@ class MainActivity : ActionMenuActivity() {
     }
     
     /**
-     * Load API key from project root .env file
+     * Load API key from assets/env.txt file
      */
     private fun loadApiKeyFromEnv(): String? {
         return try {
-            Log.d(TAG, "🔑 Loading API key from env configuration")
+            Log.d(TAG, "🔑 Loading API key from assets/env.txt")
             
-            // Try to read from project root .env file (works on M400 with project structure)
-            val envFile = File(filesDir.parentFile?.parentFile?.parentFile, ".env")
-            Log.d(TAG, "🔍 Trying to read .env from: ${envFile.absolutePath}")
-            Log.d(TAG, "🔍 .env file exists: ${envFile.exists()}")
+            // Try to read from assets/env.txt (works on both emulator and M400)
+            val inputStream = assets.open("env.txt")
+            val envContent = inputStream.bufferedReader().use { it.readText() }
+            inputStream.close()
             
-            if (envFile.exists()) {
-                envFile.readLines().forEach { line ->
-                    if (line.startsWith("OPENAI_API_KEY=") && !line.contains("YOUR_OPENAI_API_KEY_HERE")) {
-                        val apiKey = line.substring("OPENAI_API_KEY=".length).trim()
-                        if (apiKey.startsWith("sk-") && apiKey.length > 20) {
-                            Log.d(TAG, "✅ Found valid API key in .env file")
-                            return apiKey
-                        }
+            Log.d(TAG, "✅ Successfully read env.txt from assets")
+            
+            envContent.lines().forEach { line ->
+                if (line.startsWith("OPENAI_API_KEY=") && !line.contains("YOUR_OPENAI_API_KEY_HERE")) {
+                    val apiKey = line.substring("OPENAI_API_KEY=".length).trim()
+                    if (apiKey.startsWith("sk-") && apiKey.length > 20) {
+                        Log.d(TAG, "✅ Found valid API key in assets/env.txt")
+                        return apiKey
                     }
                 }
             }
             
-            Log.d(TAG, "❌ No valid API key found in .env file")
+            Log.d(TAG, "❌ No valid API key found in assets/env.txt")
             null
         } catch (e: Exception) {
-            Log.w(TAG, "⚠️ Error reading .env file: ${e.message}")
+            Log.w(TAG, "⚠️ Error reading assets/env.txt: ${e.message}")
             null
         }
     }
