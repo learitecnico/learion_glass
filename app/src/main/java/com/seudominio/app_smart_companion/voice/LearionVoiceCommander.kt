@@ -42,6 +42,13 @@ class LearionVoiceCommander(
         const val ACTION_BACK = "back"
         const val ACTION_HELP = "help"
         
+        // Active mode voice commands
+        const val ACTION_START_RECORDING = "start_recording"
+        const val ACTION_STOP_RECORDING = "stop_recording"
+        const val ACTION_SEND_PHOTO = "send_photo"
+        const val ACTION_NEW_THREAD = "new_thread"
+        const val ACTION_TOGGLE_AUDIO = "toggle_audio"
+        
         // Wake words
         private const val WAKE_WORD_VUZIX = "hello vuzix"
         private const val WAKE_WORD_LEARION = "hello learion"
@@ -68,7 +75,27 @@ class LearionVoiceCommander(
             "help" to ACTION_HELP,
             "go back" to ACTION_BACK,
             "quit" to ACTION_EXIT,
-            "close" to ACTION_EXIT
+            "close" to ACTION_EXIT,
+            
+            // Active mode commands
+            "record" to ACTION_START_RECORDING,
+            "start recording" to ACTION_START_RECORDING,
+            "gravar" to ACTION_START_RECORDING,
+            "stop" to ACTION_STOP_RECORDING,
+            "stop recording" to ACTION_STOP_RECORDING,
+            "parar" to ACTION_STOP_RECORDING,
+            "send audio" to ACTION_STOP_RECORDING,
+            "enviar audio" to ACTION_STOP_RECORDING,
+            "photo" to ACTION_SEND_PHOTO,
+            "take photo" to ACTION_SEND_PHOTO,
+            "send photo" to ACTION_SEND_PHOTO,
+            "foto" to ACTION_SEND_PHOTO,
+            "new thread" to ACTION_NEW_THREAD,
+            "new conversation" to ACTION_NEW_THREAD,
+            "nova conversa" to ACTION_NEW_THREAD,
+            "audio on" to ACTION_TOGGLE_AUDIO,
+            "audio off" to ACTION_TOGGLE_AUDIO,
+            "toggle audio" to ACTION_TOGGLE_AUDIO
         )
     }
     

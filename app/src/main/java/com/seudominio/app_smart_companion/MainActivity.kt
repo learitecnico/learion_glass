@@ -39,6 +39,8 @@ import com.seudominio.app_smart_companion.audio.CoachAudioRecorder
 import com.seudominio.app_smart_companion.assistants.OpenAIAssistantClient
 import com.seudominio.app_smart_companion.assistants.AssistantAudioManager
 import com.seudominio.app_smart_companion.assistants.AssistantPhotoManager
+import com.seudominio.app_smart_companion.assistants.ActiveModeManager
+import com.seudominio.app_smart_companion.assistants.ThreadManager
 import java.io.File
 
 class MainActivity : ActionMenuActivity() {
@@ -102,6 +104,7 @@ class MainActivity : ActionMenuActivity() {
     private var voskTranscriptionService: VoskTranscriptionService? = null  // Vosk local transcription
     private var coachAudioRecorder: CoachAudioRecorder? = null  // Audio recorder for Coach
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())  // UI thread handler
+    private var activeModeManager: ActiveModeManager? = null  // Active mode coordinator
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -475,6 +478,13 @@ class MainActivity : ActionMenuActivity() {
             unregisterReceiver(receiver)
             voiceTestReceiver = null
             Log.d(TAG, "Voice test receiver unregistered")
+        }
+        
+        // Cleanup ActiveModeManager
+        activeModeManager?.let { manager ->
+            manager.cleanup()
+            activeModeManager = null
+            Log.d(TAG, "ActiveModeManager cleaned up")
         }
         
         Log.d(TAG, "MainActivity destroyed and cleaned up")
@@ -1476,6 +1486,52 @@ class MainActivity : ActionMenuActivity() {
                 showVoiceCommandHelp()
             }
             
+            // Active mode voice commands
+            LearionVoiceCommander.ACTION_START_RECORDING -> {
+                Log.d(TAG, "🎤 Voice: Start recording requested")
+                if (currentMenuState == MenuState.COACH_ACTIVE && isCoachActive) {
+                    startAudioRecording()
+                } else {
+                    showVisualFeedback("⚠️ Active mode required")
+                }
+            }
+            
+            LearionVoiceCommander.ACTION_STOP_RECORDING -> {
+                Log.d(TAG, "⏹️ Voice: Stop recording requested")
+                if (isRecordingAudio) {
+                    stopAudioRecording()
+                } else {
+                    showVisualFeedback("⚠️ Not recording")
+                }
+            }
+            
+            LearionVoiceCommander.ACTION_SEND_PHOTO -> {
+                Log.d(TAG, "📷 Voice: Send photo requested")
+                if (currentMenuState == MenuState.COACH_ACTIVE && isCoachActive) {
+                    sendPhotoToCoachActive()
+                } else {
+                    showVisualFeedback("⚠️ Active mode required")
+                }
+            }
+            
+            LearionVoiceCommander.ACTION_NEW_THREAD -> {
+                Log.d(TAG, "🔄 Voice: New thread requested")
+                if (currentMenuState == MenuState.COACH_ACTIVE && isCoachActive) {
+                    createNewCoachThread()
+                } else {
+                    showVisualFeedback("⚠️ Active mode required")
+                }
+            }
+            
+            LearionVoiceCommander.ACTION_TOGGLE_AUDIO -> {
+                Log.d(TAG, "🔊 Voice: Toggle audio requested")
+                if (currentMenuState == MenuState.COACH_ACTIVE && isCoachActive) {
+                    toggleAudioResponse()
+                } else {
+                    showVisualFeedback("⚠️ Active mode required")
+                }
+            }
+            
             else -> {
                 Log.w(TAG, "❌ Unknown voice command action: ${command.action}")
                 showVisualFeedback("❌ Unknown command")
@@ -1507,6 +1563,77 @@ class MainActivity : ActionMenuActivity() {
             
             showVisualFeedback(status)
         }
+    }
+    
+    // ===============================
+    // ACTIVE MODE AUDIO RECORDING
+    // ===============================
+    
+    private var audioRecordingTimer: java.util.Timer? = null
+    private var audioRecordingStartTime: Long = 0
+    
+    /**
+     * Start audio recording with auto-stop after 1 minute
+     */
+    private fun startAudioRecording() {
+        if (isRecordingAudio) {
+            Log.w(TAG, "⚠️ Already recording audio")
+            showVisualFeedback("⚠️ Already recording")
+            return
+        }
+        
+        if (!isCoachActive || activeModeManager == null) {
+            Log.w(TAG, "❌ Not in active mode or manager not initialized")
+            showVisualFeedback("⚠️ Active mode required")
+            return
+        }
+        
+        Log.d(TAG, "🎤 Starting voice command audio recording")
+        isRecordingAudio = true
+        audioRecordingStartTime = System.currentTimeMillis()
+        
+        // Visual feedback
+        showVisualFeedback("🎤 Recording...\n\nSay 'stop' or wait 1 min")
+        
+        // Start actual recording using ActiveModeManager
+        activeModeManager?.sendAudioInActiveMode()
+        
+        // Set auto-stop timer for 1 minute
+        audioRecordingTimer?.cancel()
+        audioRecordingTimer = java.util.Timer()
+        audioRecordingTimer?.schedule(object : java.util.TimerTask() {
+            override fun run() {
+                runOnUiThread {
+                    Log.d(TAG, "⏰ Auto-stopping recording after 1 minute")
+                    stopAudioRecording()
+                }
+            }
+        }, 60000) // 60 seconds
+    }
+    
+    /**
+     * Stop audio recording (manual or auto-stop)
+     */
+    private fun stopAudioRecording() {
+        if (!isRecordingAudio) {
+            Log.w(TAG, "⚠️ Not recording audio")
+            return
+        }
+        
+        // Cancel timer
+        audioRecordingTimer?.cancel()
+        audioRecordingTimer = null
+        
+        // Stop recording
+        isRecordingAudio = false
+        coachAudioRecorder?.stopRecording()
+        
+        // Calculate duration
+        val duration = (System.currentTimeMillis() - audioRecordingStartTime) / 1000
+        Log.d(TAG, "⏹️ Stopped recording after ${duration}s")
+        
+        // Visual feedback
+        showVisualFeedback("⏹️ Recording stopped\n\nDuration: ${duration}s")
     }
     
     // ===============================
@@ -1575,6 +1702,19 @@ class MainActivity : ActionMenuActivity() {
     // ===============================
     // COACH SPIN ASSISTANT FUNCTIONS
     // ===============================
+    //
+    // 🎯 MODULAR PATTERN IMPLEMENTATION
+    // All functions below use reusable managers:
+    // - ActiveModeManager: For active mode coordination
+    // - AssistantAudioManager: For audio-to-assistant
+    // - AssistantPhotoManager: For photo-to-assistant
+    // - ThreadManager: For conversation persistence
+    //
+    // To add a new assistant:
+    // 1. Copy activateAssistantConnectionNewPattern()
+    // 2. Change assistantId and assistantName
+    // 3. All other functions work automatically!
+    //
     
     /**
      * Test connection to Coach SPIN assistant
@@ -1877,56 +2017,163 @@ class MainActivity : ActionMenuActivity() {
     
     /**
      * Activate Coach SPIN connection (enter active mode)
+     * Uses modular pattern for easy replication
      */
     private fun activateCoachConnection() {
         Log.d(TAG, "🚀 Activating Coach SPIN connection...")
         
-        isCoachActive = true
-        currentMenuState = MenuState.COACH_ACTIVE
+        // Get Coach SPIN assistant ID
+        val coachAssistantId = "asst_XQhJXBsG0JNgsBNzKqe7dQGa"
         
-        // TODO: Initialize thread and connection
-        currentThreadId = "thread_${System.currentTimeMillis()}"
-        
-        showVisualFeedback(
-            "🚀 Coach Active Mode\n\n" +
-            "Thread: ${currentThreadId?.takeLast(8)}\n" +
-            "Status: Connected\n" +
-            "Audio Response: ${if (audioResponseEnabled) "ON" else "OFF"}\n\n" +
-            "Double-tap to show menu"
-        )
-        
-        // Note: Menu will be automatically updated when invalidateOptionsMenu() is called
+        // NEW PATTERN: Use modular ActiveModeManager
+        activateAssistantConnectionNewPattern(coachAssistantId, "Coach SPIN")
     }
     
     /**
-     * Send audio in active mode using Vosk local transcription
+     * NEW REUSABLE PATTERN: Activate assistant connection using ActiveModeManager
+     * This pattern can be copied and reused for any assistant
+     * 
+     * @param assistantId The OpenAI Assistant ID
+     * @param assistantName The display name of the assistant
+     */
+    private fun activateAssistantConnectionNewPattern(assistantId: String, assistantName: String) {
+        Log.d(TAG, "🔗 NEW PATTERN: Activating assistant connection for $assistantName")
+        
+        // Check API key
+        val apiKey = getApiKey()
+        if (apiKey == null) {
+            showVisualFeedback("❌ API key not configured\nUse Settings to add key")
+            return
+        }
+        
+        // Initialize ActiveModeManager if needed
+        if (activeModeManager == null) {
+            Log.d(TAG, "📦 Creating ActiveModeManager instance")
+            activeModeManager = ActiveModeManager(
+                context = this,
+                lifecycleScope = lifecycleScope,
+                apiKey = apiKey
+            )
+            
+            // Set callback for UI updates
+            activeModeManager?.setCallback(object : ActiveModeManager.ActiveModeCallback {
+                override fun onActiveModeStarted(threadId: String) {
+                    Log.d(TAG, "✅ Active mode started with thread: $threadId")
+                    isCoachActive = true
+                    currentThreadId = threadId
+                    currentMenuState = MenuState.COACH_ACTIVE
+                    
+                    runOnUiThread {
+                        showVisualFeedback(
+                            "🚀 $assistantName Active Mode\n\n" +
+                            "Thread: ${threadId.takeLast(8)}\n" +
+                            "Status: Connected ✅\n" +
+                            "Audio Response: ${if (audioResponseEnabled) "ON 🔊" else "OFF 🔇"}\n\n" +
+                            "Double-tap to show menu"
+                        )
+                        invalidateOptionsMenu()
+                    }
+                }
+                
+                override fun onActiveModeEnded() {
+                    Log.d(TAG, "🔴 Active mode ended")
+                    isCoachActive = false
+                    currentThreadId = null
+                    currentMenuState = MenuState.COACH_SPIN
+                    
+                    runOnUiThread {
+                        showVisualFeedback("Active mode ended")
+                        invalidateOptionsMenu()
+                    }
+                }
+                
+                override fun onThreadCreated(newThreadId: String) {
+                    Log.d(TAG, "🔄 New thread created: $newThreadId")
+                    currentThreadId = newThreadId
+                    
+                    runOnUiThread {
+                        showVisualFeedback(
+                            "🔄 New Thread Created\n\n" +
+                            "Thread: ${newThreadId.takeLast(8)}\n" +
+                            "Conversation reset"
+                        )
+                    }
+                }
+                
+                override fun onAudioToggled(enabled: Boolean) {
+                    audioResponseEnabled = enabled
+                    runOnUiThread {
+                        showVisualFeedback(
+                            "🔊 Audio Response ${if (enabled) "ON" else "OFF"}"
+                        )
+                        invalidateOptionsMenu()
+                    }
+                }
+                
+                override fun onResponse(response: String) {
+                    runOnUiThread {
+                        // Show response permanently until user exits or uses another tool
+                        hudDisplayManager.updateTextImmediate(response)
+                    }
+                }
+                
+                override fun onError(error: String) {
+                    runOnUiThread {
+                        showVisualFeedback("❌ Error: $error")
+                    }
+                }
+                
+                override fun onStatusUpdate(status: String) {
+                    runOnUiThread {
+                        hudDisplayManager.showStatusMessage(status, 2000L)
+                    }
+                }
+            })
+        }
+        
+        // Enter active mode
+        lifecycleScope.launch {
+            try {
+                activeModeManager?.enterActiveMode(assistantId)
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error entering active mode", e)
+                runOnUiThread {
+                    showVisualFeedback("❌ Failed to activate: ${e.message}")
+                }
+            }
+        }
+    }
+    
+    /**
+     * Send audio in active mode using ActiveModeManager
      */
     private fun sendAudioToCoachActive() {
         Log.d(TAG, "🎤 Sending audio in active mode...")
         
-        if (!isCoachActive) {
-            Log.w(TAG, "❌ Not in active mode")
+        if (!isCoachActive || activeModeManager == null) {
+            Log.w(TAG, "❌ Not in active mode or manager not initialized")
+            showVisualFeedback("⚠️ Active mode required")
             return
         }
         
-        // NOVA ABORDAGEM: Enviar WAV diretamente via WebSocket para Companion Desktop
-        sendAudioFileToCoachSPIN(isActiveMode = true)
+        // NEW PATTERN: Use ActiveModeManager for audio in active mode
+        activeModeManager?.sendAudioInActiveMode()
     }
     
     /**
-     * Send photo in active mode (with thread persistence - future enhancement)
+     * Send photo in active mode using ActiveModeManager
      */
     private fun sendPhotoToCoachActive() {
         Log.d(TAG, "📸 Sending photo in active mode...")
         
-        if (!isCoachActive) {
-            Log.w(TAG, "❌ Not in active mode")
+        if (!isCoachActive || activeModeManager == null) {
+            Log.w(TAG, "❌ Not in active mode or manager not initialized")
+            showVisualFeedback("⚠️ Active mode required")
             return
         }
         
-        // For now, use same pattern as regular photo send (creates new thread)
-        // TODO: Future enhancement - implement thread persistence for active mode
-        sendPhotoToCoach()
+        // NEW PATTERN: Use ActiveModeManager for photo in active mode
+        activeModeManager?.sendPhotoInActiveMode()
     }
     
     /**
@@ -1935,35 +2182,40 @@ class MainActivity : ActionMenuActivity() {
     private fun createNewThread() {
         Log.d(TAG, "🔄 Creating new thread...")
         
-        val oldThread = currentThreadId?.takeLast(8)
-        currentThreadId = "thread_${System.currentTimeMillis()}"
+        if (!isCoachActive || activeModeManager == null) {
+            Log.w(TAG, "❌ Not in active mode or manager not initialized")
+            showVisualFeedback("⚠️ Active mode required")
+            return
+        }
         
-        showVisualFeedback(
-            "🔄 New Thread Created\n\n" +
-            "Previous: $oldThread\n" +
-            "New: ${currentThreadId?.takeLast(8)}\n\n" +
-            "Conversation reset"
-        )
+        // NEW PATTERN: Use ActiveModeManager for new thread
+        lifecycleScope.launch {
+            activeModeManager?.createNewThread()
+        }
+    }
+    
+    /**
+     * Create new thread for Coach (voice command version)
+     */
+    private fun createNewCoachThread() {
+        // Delegate to the main createNewThread function
+        createNewThread()
     }
     
     /**
      * Toggle audio response setting
      */
     private fun toggleAudioResponse() {
-        audioResponseEnabled = !audioResponseEnabled
+        Log.d(TAG, "🔊 Toggling audio response...")
         
-        Log.d(TAG, "🔊 Audio response: ${if (audioResponseEnabled) "enabled" else "disabled"}")
-        
-        showVisualFeedback(
-            "🔊 Audio Response\n\n" +
-            "Status: ${if (audioResponseEnabled) "ENABLED" else "DISABLED"}\n\n" +
-            "${if (audioResponseEnabled) "Assistant will speak responses" else "Text-only responses"}"
-        )
-        
-        // Rebuild menu to update toggle text
-        if (currentMenuState == MenuState.COACH_ACTIVE) {
-            invalidateOptionsMenu()
+        if (!isCoachActive || activeModeManager == null) {
+            Log.w(TAG, "❌ Not in active mode or manager not initialized")
+            showVisualFeedback("⚠️ Active mode required")
+            return
         }
+        
+        // NEW PATTERN: Use ActiveModeManager for audio toggle
+        activeModeManager?.toggleAudioResponse()
     }
     
     // ===============================
