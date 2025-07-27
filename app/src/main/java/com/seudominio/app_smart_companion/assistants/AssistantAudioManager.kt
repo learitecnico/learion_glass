@@ -71,14 +71,29 @@ class AssistantAudioManager(
         // Start audio recording
         val audioRecorder = CoachAudioRecorder(context)
         audioRecorder.startRecording(object : CoachAudioRecorder.AudioRecordingCallback {
-            override fun onRecordingComplete(audioFile: File) {
-                Log.d(TAG, "🎵 Audio recording completed: ${audioFile.absolutePath}")
+            override fun onRecordingStarted() {
+                Log.d(TAG, "🎤 Recording started")
+                // onRecordingStarted já foi chamado antes
+            }
+            
+            override fun onAudioData(audioData: ByteArray) {
+                // Data streaming - not used for this implementation
+            }
+            
+            override fun onAmplitudeUpdate(amplitude: Int) {
+                // Amplitude updates - not used for this implementation  
+            }
+            
+            override fun onRecordingCompleted() {
+                Log.d(TAG, "🎵 Audio recording completed")
                 
                 // Stage 2: Processing Started  
                 mainHandler.post { callback.onProcessingStarted() }
                 
-                // Process audio through Whisper → Assistant
-                processAudioToAssistant(audioFile, callback, threadId, language)
+                // Get the recorded file and process it
+                // TODO: Get actual audio file from recorder
+                val testAudioFile = File(context.filesDir, "recorded_audio.wav")
+                processAudioToAssistant(testAudioFile, callback, threadId, language)
             }
             
             override fun onRecordingError(error: String) {
@@ -150,6 +165,11 @@ class AssistantAudioManager(
                         isProcessing = false
                         mainHandler.post { callback.onAssistantResponse(response) }
                     },
+                    onError = { error: String ->
+                        Log.e(TAG, "❌ Assistant error: $error")
+                        isProcessing = false
+                        mainHandler.post { callback.onError("Erro do Assistant: $error") }
+                    },
                     onStatusUpdate = { status: String ->
                         Log.d(TAG, "ℹ️ Assistant status: $status")
                         // Status updates can be ignored or logged
@@ -169,9 +189,9 @@ class AssistantAudioManager(
                     return@launch
                 }
                 
-                // Send message to assistant
-                val messageAdded = assistantClient.addMessageToThread(finalThreadId, transcript, assistantId)
-                if (!messageAdded) {
+                // Send message to assistant  
+                val messageSent = assistantClient.sendTextMessage(transcript)
+                if (!messageSent) {
                     isProcessing = false
                     mainHandler.post { callback.onError("Erro ao enviar mensagem") }
                     return@launch

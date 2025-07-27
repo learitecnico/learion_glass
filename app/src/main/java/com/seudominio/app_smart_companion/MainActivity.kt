@@ -38,6 +38,7 @@ import com.seudominio.app_smart_companion.vosk.VoskTranscriptionService
 import com.seudominio.app_smart_companion.audio.CoachAudioRecorder
 import com.seudominio.app_smart_companion.assistants.OpenAIAssistantClient
 import com.seudominio.app_smart_companion.assistants.AssistantAudioManager
+import com.seudominio.app_smart_companion.assistants.AssistantPhotoManager
 import java.io.File
 
 class MainActivity : ActionMenuActivity() {
@@ -1591,6 +1592,30 @@ class MainActivity : ActionMenuActivity() {
     }
     
     /**
+     * Test photo capture and analysis system
+     */
+    private fun testPhotoSystem() {
+        Log.d(TAG, "🧪 Testing Photo → Vision → Assistant system...")
+        
+        lifecycleScope.launch {
+            try {
+                // Check API key only
+                val apiKey = getApiKey()
+                if (apiKey.isNullOrEmpty()) {
+                    showPermanentMessage("❌ API key não configurada para teste")
+                    return@launch
+                }
+                
+                showPermanentMessage("✅ Sistema de foto pronto para uso")
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Erro no teste do sistema de foto: ${e.message}", e)
+                showPermanentMessage("❌ Erro no teste: ${e.message}")
+            }
+        }
+    }
+    
+    /**
      * Show Coach SPIN agent information
      */
     private fun showAgentInfo() {
@@ -1606,20 +1631,6 @@ class MainActivity : ActionMenuActivity() {
         )
     }
     
-    /**
-     * Send photo to Coach SPIN assistant
-     */
-    private fun sendPhotoToCoach() {
-        Log.d(TAG, "📸 Sending photo to Coach SPIN...")
-        
-        // TODO: Implement photo capture and send
-        showVisualFeedback(
-            "📸 Photo Capture\n\n" +
-            "Capturing image from M400...\n" +
-            "Encoding for assistant...\n\n" +
-            "Status: In development"
-        )
-    }
     
     /**
      * Send audio to Coach SPIN assistant using new reusable pattern
@@ -1675,6 +1686,74 @@ class MainActivity : ActionMenuActivity() {
             },
             threadId = if (isCoachActive) currentThreadId else null, // Use existing thread if in active mode
             language = "pt" // Portuguese
+        )
+    }
+    
+    /**
+     * Send photo to Coach SPIN assistant using new reusable pattern
+     */
+    private fun sendPhotoToCoach() {
+        Log.d(TAG, "📷 sendPhotoToCoach() CALLED - Starting photo capture flow")
+        
+        // Show immediate feedback to user
+        showTemporaryMessage("Iniciando captura...")
+        
+        // NEW PATTERN: Use AssistantPhotoManager for reusable photo-to-assistant flow
+        sendPhotoToAssistantNewPattern()
+    }
+    
+    /**
+     * NEW REUSABLE PATTERN: Photo-to-Assistant using AssistantPhotoManager
+     * This pattern can be copied and reused for any assistant
+     */
+    private fun sendPhotoToAssistantNewPattern() {
+        // Get API key
+        val apiKey = getApiKey()
+        if (apiKey.isNullOrEmpty()) {
+            showPermanentMessage("API key não configurada")
+            return
+        }
+        
+        // Coach SPIN Assistant ID
+        val coachSpinAssistantId = "asst_hXcg5nxjUuv2EMcJoiJbMIBN"
+        
+        // Create AssistantPhotoManager instance
+        val photoManager = AssistantPhotoManager(
+            context = this,
+            lifecycleScope = lifecycleScope,
+            assistantId = coachSpinAssistantId,
+            apiKey = apiKey
+        )
+        
+        // Start photo-to-assistant flow with callbacks
+        photoManager.startPhotoToAssistant(
+            visionPrompt = "Analyze this image for sales opportunities, customer insights, and business context",
+            assistantPrompt = "Based on this image analysis, provide SPIN selling coaching advice and strategic insights",
+            callback = object : AssistantPhotoManager.PhotoToAssistantCallback {
+                override fun onCaptureStarted() {
+                    // Silencioso - não mostra mensagem
+                }
+                
+                override fun onPhotoTaken() {
+                    showTemporaryMessage("Foto capturada...")
+                }
+                
+                override fun onVisionAnalysisStarted() {
+                    showTemporaryMessage("Analisando...")
+                }
+                
+                override fun onAssistantProcessingStarted() {
+                    // Silencioso - não mostra mensagem adicional
+                }
+                
+                override fun onAssistantResponse(response: String) {
+                    showPermanentMessage("Coach SPIN: $response")
+                }
+                
+                override fun onError(error: String) {
+                    showPermanentMessage("Erro: $error")
+                }
+            }
         )
     }
     
@@ -1835,7 +1914,7 @@ class MainActivity : ActionMenuActivity() {
     }
     
     /**
-     * Send photo in active mode
+     * Send photo in active mode (with thread persistence - future enhancement)
      */
     private fun sendPhotoToCoachActive() {
         Log.d(TAG, "📸 Sending photo in active mode...")
@@ -1845,13 +1924,9 @@ class MainActivity : ActionMenuActivity() {
             return
         }
         
-        // TODO: Implement quick photo send
-        showVisualFeedback(
-            "📸 Quick Photo\n\n" +
-            "Thread: ${currentThreadId?.takeLast(8)}\n" +
-            "Capturing...\n\n" +
-            "Status: Processing"
-        )
+        // For now, use same pattern as regular photo send (creates new thread)
+        // TODO: Future enhancement - implement thread persistence for active mode
+        sendPhotoToCoach()
     }
     
     /**

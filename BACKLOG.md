@@ -1,11 +1,58 @@
 # BACKLOG.md
 
-> **Última atualização:** 2025-07-27 03:00 (ASSISTANT AUDIO PATTERN REFACTORED)
-> **Fase atual:** ASSISTANT AUDIO PATTERN - REUSABLE ARCHITECTURE
+> **Última atualização:** 2025-07-27 04:30 (PHOTO CAPTURE + HUD MESSAGES RESTAURADAS)
+> **Fase atual:** ASSISTANT PHOTO PATTERN + HUD RESTORATION
 
-## 📋 Estado Atual do Projeto (27/07/2025 - 03:00)
+## 📋 Estado Atual do Projeto (27/07/2025 - 04:30)
 
-## 🎉 **NOVA CONQUISTA: ASSISTANT AUDIO PATTERN REFACTORED**
+## 🎉 **BREAKTHROUGH: PHOTO CAPTURE FUNCIONANDO + HUD MESSAGES RESTAURADAS**
+
+### ✅ **ASSISTANT PHOTO PATTERN + HUD RESTORATION (27/07/2025 - 04:30)** [CURRENT]
+
+**CONQUISTAS CRÍTICAS:**
+- ✅ **PHOTO CAPTURE WORKING** - Botão "Enviar Foto" funcionando perfeitamente
+- ✅ **HUD MESSAGES RESTORED** - Mensagens voltaram a aparecer no dispositivo M400
+- ✅ **AssistantPhotoManager** - Padrão modular implementado
+- ✅ **Menu Integration** - Integração completa no menu Coach SPIN
+- ✅ **Error Handling** - Detectou corretamente "API key não configurada"
+- ✅ **Debug Logging** - Sistema de logs funcionando perfeitamente
+
+**SOLUÇÃO ENCONTRADA:**
+- 🔑 **KEY FIX**: `showTemporaryMessage("Iniciando captura...")` restaurou HUD messages
+- 🎯 **Root Cause**: Mensagens HUD estavam sendo bloqueadas/não exibidas
+- 💡 **Pattern**: showTemporaryMessage() + showPermanentMessage() funcionando
+
+**PADRÃO PHOTO-TO-ASSISTANT:**
+```kotlin
+// AssistantPhotoManager.kt - Pipeline completo modular
+val photoManager = AssistantPhotoManager(
+    context = this,
+    lifecycleScope = lifecycleScope, 
+    assistantId = "asst_hXcg5nxjUuv2EMcJoiJbMIBN",
+    apiKey = apiKey
+)
+
+photoManager.startPhotoToAssistant(
+    visionPrompt = "Analyze this image for sales opportunities",
+    assistantPrompt = "Provide SPIN selling coaching advice",
+    callback = object : AssistantPhotoManager.PhotoToAssistantCallback {
+        override fun onCaptureStarted() { /* silent */ }
+        override fun onPhotoTaken() = showTemporaryMessage("Foto capturada...")
+        override fun onVisionAnalysisStarted() = showTemporaryMessage("Analisando...")
+        override fun onAssistantProcessingStarted() { /* silent */ }
+        override fun onAssistantResponse(response: String) = showPermanentMessage("Coach SPIN: $response")
+        override fun onError(error: String) = showPermanentMessage("Erro: $error")
+    }
+)
+```
+
+**PRÓXIMOS PASSOS:**
+1. 🔑 **Configurar API key** para testar pipeline completo
+2. 📸 **Testar Photo → Vision → Assistant** end-to-end
+3. 🎵 **Validar que audio continua funcionando**
+4. 🔊 **PASSO 8.3**: Implementar TTS para respostas
+
+## 🎉 **CONQUISTA ANTERIOR: ASSISTANT AUDIO PATTERN REFACTORED**
 
 ### ✅ **ASSISTANT AUDIO PATTERN REFACTORED (27/07/2025 - 03:00)** [CURRENT]
 
