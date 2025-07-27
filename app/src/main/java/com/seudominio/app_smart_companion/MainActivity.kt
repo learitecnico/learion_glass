@@ -41,6 +41,8 @@ import com.seudominio.app_smart_companion.assistants.AssistantAudioManager
 import com.seudominio.app_smart_companion.assistants.AssistantPhotoManager
 import com.seudominio.app_smart_companion.assistants.ActiveModeManager
 import com.seudominio.app_smart_companion.assistants.ThreadManager
+import com.seudominio.app_smart_companion.assistants.AssistantRegistry
+import com.seudominio.app_smart_companion.models.Assistant
 import java.io.File
 
 class MainActivity : ActionMenuActivity() {
@@ -77,18 +79,17 @@ class MainActivity : ActionMenuActivity() {
     private lateinit var sharedPreferences: SharedPreferences
     private var isSessionActive = false
     private var isListening = false  // Toggle state for Talk to AI
-    private var isAssistantActive = false  // Assistant session state
     private var isAssistantConnected = false  // Assistant connection ready state
     private var isRecordingAudio = false  // Audio recording state
     
     // Menu Navigation State
     private enum class MenuState {
-        MAIN,           // Main menu: Assistants, Live Agent, Voice Commands, Settings, Exit
-        ASSISTANTS,     // Assistants menu: Coach SPIN, [Future agents], Back
-        COACH_SPIN,     // Coach SPIN menu: Test, Photo, Audio, Info, Active, Back
-        COACH_ACTIVE,   // Coach Active mode: Audio, Photo, New Thread, Toggle Audio, Back
-        ASSISTANT,      // Legacy: Assistant submenu: Start Chat, Back
-        LIVE_AGENT      // Live Agent submenu: Start Chat, Switch Agent, Back
+        MAIN,             // Main menu: Assistants, Live Agent, Voice Commands, Settings, Exit
+        ASSISTANTS,       // Assistants menu: Coach SPIN, [Future agents], Back
+        ASSISTANT_MENU,   // Generic assistant menu: Test, Photo, Audio, Info, Active, Back
+        ASSISTANT_ACTIVE, // Generic assistant active mode: Audio, Photo, New Thread, Toggle Audio, Back
+        ASSISTANT,        // Legacy: Assistant submenu: Start Chat, Back
+        LIVE_AGENT        // Live Agent submenu: Start Chat, Switch Agent, Back
     }
     
     private var currentMenuState = MenuState.MAIN
@@ -97,8 +98,9 @@ class MainActivity : ActionMenuActivity() {
     // Voice Commander for hands-free control
     private lateinit var voiceCommander: LearionVoiceCommander
     
-    // Coach SPIN state management
-    private var isCoachActive = false  // Coach SPIN active connection state
+    // Assistant state management
+    private var currentAssistant: Assistant? = null  // Currently selected assistant
+    private var isAssistantActive = false  // Assistant active connection state
     private var currentThreadId: String? = null  // Active conversation thread
     private var audioResponseEnabled = false  // Toggle for audio responses (default OFF)
     private var voskTranscriptionService: VoskTranscriptionService? = null  // Vosk local transcription
@@ -324,10 +326,8 @@ class MainActivity : ActionMenuActivity() {
             // Use updateTextImmediate for permanent display (not temporary showStatusMessage)
             hudDisplayManager.updateTextImmediate(
                 "🤖 Learion Glass AI Assistant\n\n" +
-                "Ready to chat with $currentAgent!\n\n" +
                 "🎤 TAP TRACKPAD → Open Menu\n" +
-                "🗣️ Say \"Hello Vuzix, 1\" → Start Now\n\n" +
-                "💡 After starting AI, just talk normally!"
+                "🗣️ Say \"Hello Vuzix, 1\" → Start Now"
             )
         } else {
             hudDisplayManager.updateTextImmediate(
@@ -595,18 +595,19 @@ class MainActivity : ActionMenuActivity() {
                 navigateBack()
                 true
             }
-            MenuState.COACH_SPIN -> {
-                // In coach spin menu - go back to assistants
-                Log.d(TAG, "🎯 Back from coach spin menu - returning to assistants menu")
+            MenuState.ASSISTANT_MENU -> {
+                // In assistant menu - go back to assistants
+                Log.d(TAG, "🎯 Back from assistant menu - returning to assistants menu")
                 currentMenuState = MenuState.ASSISTANTS
+                currentAssistant = null
                 invalidateOptionsMenu()
                 true
             }
-            MenuState.COACH_ACTIVE -> {
-                // In active mode - go back to coach spin
-                Log.d(TAG, "🎯 Back from active mode - returning to coach spin menu")
-                isCoachActive = false
-                currentMenuState = MenuState.COACH_SPIN
+            MenuState.ASSISTANT_ACTIVE -> {
+                // In active mode - go back to assistant menu
+                Log.d(TAG, "🎯 Back from active mode - returning to assistant menu")
+                isAssistantActive = false
+                currentMenuState = MenuState.ASSISTANT_MENU
                 invalidateOptionsMenu()
                 true
             }
@@ -767,8 +768,8 @@ class MainActivity : ActionMenuActivity() {
         val menuResource = when (currentMenuState) {
             MenuState.MAIN -> R.menu.main_menu
             MenuState.ASSISTANTS -> R.menu.assistants_menu
-            MenuState.COACH_SPIN -> R.menu.coach_spin_menu
-            MenuState.COACH_ACTIVE -> R.menu.coach_active_menu
+            MenuState.ASSISTANT_MENU -> currentAssistant?.menuResourceId ?: R.menu.coach_spin_menu
+            MenuState.ASSISTANT_ACTIVE -> currentAssistant?.activeMenuResourceId ?: R.menu.coach_active_menu
             MenuState.ASSISTANT -> R.menu.assistant_menu
             MenuState.LIVE_AGENT -> R.menu.live_agent_menu
         }
@@ -776,7 +777,7 @@ class MainActivity : ActionMenuActivity() {
         menuInflater.inflate(menuResource, menu)
         
         // Update dynamic menu items based on state
-        if (currentMenuState == MenuState.COACH_ACTIVE) {
+        if (currentMenuState == MenuState.ASSISTANT_ACTIVE) {
             menu?.findItem(R.id.action_toggle_audio_response)?.let { audioToggle ->
                 audioToggle.title = "4. Receber Áudio [${if (audioResponseEnabled) "ON" else "OFF"}]"
             }
@@ -855,7 +856,9 @@ class MainActivity : ActionMenuActivity() {
             // ============ ASSISTANTS MENU ITEMS ============
             R.id.action_coach_spin -> {
                 Log.d(TAG, "🎯 Coach SPIN selected")
-                navigateToMenu(MenuState.COACH_SPIN)
+                // Set current assistant
+                currentAssistant = AssistantRegistry.getAssistantByName("Coach SPIN")
+                navigateToMenu(MenuState.ASSISTANT_MENU)
                 showVisualFeedback("Coach SPIN")
                 true
             }
@@ -863,19 +866,19 @@ class MainActivity : ActionMenuActivity() {
             // ============ COACH SPIN MENU ITEMS ============
             R.id.action_test_connection -> {
                 Log.d(TAG, "🎯 Test Connection selected")
-                testCoachConnection()
+                testAssistantConnection()
                 true
             }
             
             R.id.action_send_photo -> {
                 Log.d(TAG, "🎯 Send Photo selected")
-                sendPhotoToCoach()
+                sendPhotoToAssistant()
                 true
             }
             
             R.id.action_send_audio -> {
                 Log.d(TAG, "🎯 Send Audio selected")
-                sendAudioToCoach()
+                sendAudioToAssistant()
                 true
             }
             
@@ -887,20 +890,20 @@ class MainActivity : ActionMenuActivity() {
             
             R.id.action_active_connection -> {
                 Log.d(TAG, "🎯 Active Connection selected")
-                activateCoachConnection()
+                activateAssistantConnection()
                 true
             }
             
             // ============ COACH ACTIVE MENU ITEMS ============
             R.id.action_send_audio_active -> {
                 Log.d(TAG, "🎯 Send Audio (Active) selected")
-                sendAudioToCoachActive()
+                sendAudioToAssistantActive()
                 true
             }
             
             R.id.action_send_photo_active -> {
                 Log.d(TAG, "🎯 Send Photo (Active) selected")
-                sendPhotoToCoachActive()
+                sendPhotoToAssistantActive()
                 true
             }
             
@@ -988,9 +991,9 @@ class MainActivity : ActionMenuActivity() {
     private fun navigateToMenu(newState: MenuState) {
         Log.d(TAG, "🎯 Navigating from ${currentMenuState} to ${newState}")
         
-        // Clear HUD when leaving Coach SPIN active mode
-        if (currentMenuState == MenuState.COACH_ACTIVE || currentMenuState == MenuState.COACH_SPIN) {
-            if (newState != MenuState.COACH_ACTIVE && newState != MenuState.COACH_SPIN) {
+        // Clear HUD when leaving assistant active mode
+        if (currentMenuState == MenuState.ASSISTANT_ACTIVE || currentMenuState == MenuState.ASSISTANT_MENU) {
+            if (newState != MenuState.ASSISTANT_ACTIVE && newState != MenuState.ASSISTANT_MENU) {
                 clearHudDisplay()
                 Log.d(TAG, "🧹 HUD cleared - leaving Coach SPIN area")
             }
@@ -1035,8 +1038,8 @@ class MainActivity : ActionMenuActivity() {
             val backMessage = when (currentMenuState) {
                 MenuState.MAIN -> "⬅️ Back to Main Menu"
                 MenuState.ASSISTANTS -> "⬅️ Back to Assistants Menu"
-                MenuState.COACH_SPIN -> "⬅️ Back to Coach SPIN Menu"
-                MenuState.COACH_ACTIVE -> "⬅️ Back to Coach Active Mode"
+                MenuState.ASSISTANT_MENU -> "⬅️ Back to ${currentAssistant?.name ?: "Assistant"} Menu"
+                MenuState.ASSISTANT_ACTIVE -> "⬅️ Back to ${currentAssistant?.name ?: "Assistant"} Active Mode"
                 MenuState.ASSISTANT -> "⬅️ Back to Assistant Menu"
                 MenuState.LIVE_AGENT -> "⬅️ Back to Live Agent Menu"
             }
@@ -1489,7 +1492,7 @@ class MainActivity : ActionMenuActivity() {
             // Active mode voice commands
             LearionVoiceCommander.ACTION_START_RECORDING -> {
                 Log.d(TAG, "🎤 Voice: Start recording requested")
-                if (currentMenuState == MenuState.COACH_ACTIVE && isCoachActive) {
+                if (currentMenuState == MenuState.ASSISTANT_ACTIVE && isAssistantActive) {
                     startAudioRecording()
                 } else {
                     showVisualFeedback("⚠️ Active mode required")
@@ -1507,8 +1510,8 @@ class MainActivity : ActionMenuActivity() {
             
             LearionVoiceCommander.ACTION_SEND_PHOTO -> {
                 Log.d(TAG, "📷 Voice: Send photo requested")
-                if (currentMenuState == MenuState.COACH_ACTIVE && isCoachActive) {
-                    sendPhotoToCoachActive()
+                if (currentMenuState == MenuState.ASSISTANT_ACTIVE && isAssistantActive) {
+                    sendPhotoToAssistantActive()
                 } else {
                     showVisualFeedback("⚠️ Active mode required")
                 }
@@ -1516,8 +1519,8 @@ class MainActivity : ActionMenuActivity() {
             
             LearionVoiceCommander.ACTION_NEW_THREAD -> {
                 Log.d(TAG, "🔄 Voice: New thread requested")
-                if (currentMenuState == MenuState.COACH_ACTIVE && isCoachActive) {
-                    createNewCoachThread()
+                if (currentMenuState == MenuState.ASSISTANT_ACTIVE && isAssistantActive) {
+                    createNewAssistantThread()
                 } else {
                     showVisualFeedback("⚠️ Active mode required")
                 }
@@ -1525,7 +1528,7 @@ class MainActivity : ActionMenuActivity() {
             
             LearionVoiceCommander.ACTION_TOGGLE_AUDIO -> {
                 Log.d(TAG, "🔊 Voice: Toggle audio requested")
-                if (currentMenuState == MenuState.COACH_ACTIVE && isCoachActive) {
+                if (currentMenuState == MenuState.ASSISTANT_ACTIVE && isAssistantActive) {
                     toggleAudioResponse()
                 } else {
                     showVisualFeedback("⚠️ Active mode required")
@@ -1582,7 +1585,7 @@ class MainActivity : ActionMenuActivity() {
             return
         }
         
-        if (!isCoachActive || activeModeManager == null) {
+        if (!isAssistantActive || activeModeManager == null) {
             Log.w(TAG, "❌ Not in active mode or manager not initialized")
             showVisualFeedback("⚠️ Active mode required")
             return
@@ -1717,15 +1720,22 @@ class MainActivity : ActionMenuActivity() {
     //
     
     /**
-     * Test connection to Coach SPIN assistant
+     * Test connection to current assistant
      */
-    private fun testCoachConnection() {
-        Log.d(TAG, "🧪 Testing Coach SPIN connection...")
+    private fun testAssistantConnection() {
+        val assistant = currentAssistant
+        if (assistant == null) {
+            Log.e(TAG, "❌ No assistant selected")
+            showVisualFeedback("❌ No assistant selected")
+            return
+        }
+        
+        Log.d(TAG, "🧪 Testing ${assistant.name} connection...")
         
         // TODO: Implement actual connection test
         showVisualFeedback(
             "🔗 Testing Connection...\n\n" +
-            "Coach SPIN Assistant\n" +
+            "${assistant.name} Assistant\n" +
             "Status: Ready for testing\n\n" +
             "Next: Configure API endpoint"
         )
@@ -1775,18 +1785,25 @@ class MainActivity : ActionMenuActivity() {
     /**
      * Send audio to Coach SPIN assistant using new reusable pattern
      */
-    private fun sendAudioToCoach() {
-        Log.d(TAG, "🎤 Sending audio to Coach SPIN...")
+    private fun sendAudioToAssistant() {
+        val assistant = currentAssistant
+        if (assistant == null) {
+            Log.e(TAG, "❌ No assistant selected")
+            showVisualFeedback("❌ No assistant selected")
+            return
+        }
         
-        // NEW PATTERN: Use AssistantAudioManager for reusable audio-to-assistant flow
-        sendAudioToAssistantNewPattern()
+        Log.d(TAG, "🎤 Sending audio to ${assistant.name}...")
+        
+        // Use AssistantAudioManager for reusable audio-to-assistant flow
+        sendAudioToAssistantNewPattern(assistant.id)
     }
     
     /**
      * NEW REUSABLE PATTERN: Audio-to-Assistant using AssistantAudioManager
      * This pattern can be copied and reused for any assistant
      */
-    private fun sendAudioToAssistantNewPattern() {
+    private fun sendAudioToAssistantNewPattern(assistantId: String) {
         // Get API key
         val apiKey = getApiKey()
         if (apiKey.isNullOrEmpty()) {
@@ -1794,14 +1811,11 @@ class MainActivity : ActionMenuActivity() {
             return
         }
         
-        // Coach SPIN Assistant ID
-        val coachSpinAssistantId = "asst_hXcg5nxjUuv2EMcJoiJbMIBN"
-        
         // Create AssistantAudioManager instance
         val audioManager = AssistantAudioManager(
             context = this,
             lifecycleScope = lifecycleScope,
-            assistantId = coachSpinAssistantId,
+            assistantId = assistantId,
             apiKey = apiKey
         )
         
@@ -1824,7 +1838,7 @@ class MainActivity : ActionMenuActivity() {
                     showPermanentMessage("Erro: $error")
                 }
             },
-            threadId = if (isCoachActive) currentThreadId else null, // Use existing thread if in active mode
+            threadId = if (isAssistantActive) currentThreadId else null, // Use existing thread if in active mode
             language = "pt" // Portuguese
         )
     }
@@ -1832,21 +1846,28 @@ class MainActivity : ActionMenuActivity() {
     /**
      * Send photo to Coach SPIN assistant using new reusable pattern
      */
-    private fun sendPhotoToCoach() {
-        Log.d(TAG, "📷 sendPhotoToCoach() CALLED - Starting photo capture flow")
+    private fun sendPhotoToAssistant() {
+        val assistant = currentAssistant
+        if (assistant == null) {
+            Log.e(TAG, "❌ No assistant selected")
+            showVisualFeedback("❌ No assistant selected")
+            return
+        }
+        
+        Log.d(TAG, "📷 sendPhotoToAssistant() CALLED - Starting photo capture flow")
         
         // Show immediate feedback to user
         showTemporaryMessage("Iniciando captura...")
         
-        // NEW PATTERN: Use AssistantPhotoManager for reusable photo-to-assistant flow
-        sendPhotoToAssistantNewPattern()
+        // Use AssistantPhotoManager for reusable photo-to-assistant flow
+        sendPhotoToAssistantNewPattern(assistant.id)
     }
     
     /**
      * NEW REUSABLE PATTERN: Photo-to-Assistant using AssistantPhotoManager
      * This pattern can be copied and reused for any assistant
      */
-    private fun sendPhotoToAssistantNewPattern() {
+    private fun sendPhotoToAssistantNewPattern(assistantId: String) {
         // Get API key
         val apiKey = getApiKey()
         if (apiKey.isNullOrEmpty()) {
@@ -1854,14 +1875,11 @@ class MainActivity : ActionMenuActivity() {
             return
         }
         
-        // Coach SPIN Assistant ID
-        val coachSpinAssistantId = "asst_hXcg5nxjUuv2EMcJoiJbMIBN"
-        
         // Create AssistantPhotoManager instance
         val photoManager = AssistantPhotoManager(
             context = this,
             lifecycleScope = lifecycleScope,
-            assistantId = coachSpinAssistantId,
+            assistantId = assistantId,
             apiKey = apiKey
         )
         
@@ -2019,14 +2037,18 @@ class MainActivity : ActionMenuActivity() {
      * Activate Coach SPIN connection (enter active mode)
      * Uses modular pattern for easy replication
      */
-    private fun activateCoachConnection() {
-        Log.d(TAG, "🚀 Activating Coach SPIN connection...")
+    private fun activateAssistantConnection() {
+        val assistant = currentAssistant
+        if (assistant == null) {
+            Log.e(TAG, "❌ No assistant selected")
+            showVisualFeedback("❌ No assistant selected")
+            return
+        }
         
-        // Get Coach SPIN assistant ID
-        val coachAssistantId = "asst_XQhJXBsG0JNgsBNzKqe7dQGa"
+        Log.d(TAG, "🚀 Activating ${assistant.name} connection...")
         
-        // NEW PATTERN: Use modular ActiveModeManager
-        activateAssistantConnectionNewPattern(coachAssistantId, "Coach SPIN")
+        // Use modular ActiveModeManager
+        activateAssistantConnectionNewPattern(assistant.id, assistant.name)
     }
     
     /**
@@ -2059,9 +2081,9 @@ class MainActivity : ActionMenuActivity() {
             activeModeManager?.setCallback(object : ActiveModeManager.ActiveModeCallback {
                 override fun onActiveModeStarted(threadId: String) {
                     Log.d(TAG, "✅ Active mode started with thread: $threadId")
-                    isCoachActive = true
+                    isAssistantActive = true
                     currentThreadId = threadId
-                    currentMenuState = MenuState.COACH_ACTIVE
+                    currentMenuState = MenuState.ASSISTANT_ACTIVE
                     
                     runOnUiThread {
                         showVisualFeedback(
@@ -2077,9 +2099,9 @@ class MainActivity : ActionMenuActivity() {
                 
                 override fun onActiveModeEnded() {
                     Log.d(TAG, "🔴 Active mode ended")
-                    isCoachActive = false
+                    isAssistantActive = false
                     currentThreadId = null
-                    currentMenuState = MenuState.COACH_SPIN
+                    currentMenuState = MenuState.ASSISTANT_MENU
                     
                     runOnUiThread {
                         showVisualFeedback("Active mode ended")
@@ -2147,10 +2169,10 @@ class MainActivity : ActionMenuActivity() {
     /**
      * Send audio in active mode using ActiveModeManager
      */
-    private fun sendAudioToCoachActive() {
+    private fun sendAudioToAssistantActive() {
         Log.d(TAG, "🎤 Sending audio in active mode...")
         
-        if (!isCoachActive || activeModeManager == null) {
+        if (!isAssistantActive || activeModeManager == null) {
             Log.w(TAG, "❌ Not in active mode or manager not initialized")
             showVisualFeedback("⚠️ Active mode required")
             return
@@ -2163,10 +2185,10 @@ class MainActivity : ActionMenuActivity() {
     /**
      * Send photo in active mode using ActiveModeManager
      */
-    private fun sendPhotoToCoachActive() {
+    private fun sendPhotoToAssistantActive() {
         Log.d(TAG, "📸 Sending photo in active mode...")
         
-        if (!isCoachActive || activeModeManager == null) {
+        if (!isAssistantActive || activeModeManager == null) {
             Log.w(TAG, "❌ Not in active mode or manager not initialized")
             showVisualFeedback("⚠️ Active mode required")
             return
@@ -2182,7 +2204,7 @@ class MainActivity : ActionMenuActivity() {
     private fun createNewThread() {
         Log.d(TAG, "🔄 Creating new thread...")
         
-        if (!isCoachActive || activeModeManager == null) {
+        if (!isAssistantActive || activeModeManager == null) {
             Log.w(TAG, "❌ Not in active mode or manager not initialized")
             showVisualFeedback("⚠️ Active mode required")
             return
@@ -2197,7 +2219,7 @@ class MainActivity : ActionMenuActivity() {
     /**
      * Create new thread for Coach (voice command version)
      */
-    private fun createNewCoachThread() {
+    private fun createNewAssistantThread() {
         // Delegate to the main createNewThread function
         createNewThread()
     }
@@ -2208,7 +2230,7 @@ class MainActivity : ActionMenuActivity() {
     private fun toggleAudioResponse() {
         Log.d(TAG, "🔊 Toggling audio response...")
         
-        if (!isCoachActive || activeModeManager == null) {
+        if (!isAssistantActive || activeModeManager == null) {
             Log.w(TAG, "❌ Not in active mode or manager not initialized")
             showVisualFeedback("⚠️ Active mode required")
             return
